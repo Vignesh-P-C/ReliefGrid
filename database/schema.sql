@@ -207,12 +207,12 @@ $$ LANGUAGE plpgsql;
 -- 3. TRIGGERS
 -- ============================================================
 
--- 3.1 Belt-and-suspenders stock guard on every allocation insert
+-- 3.1 Belt-and-suspenders stock guard on every allocation insert.
+-- allocate_supply() already deducts Supplies.quantity under its own row lock —
+-- this trigger only CHECKS the post-deduction balance, it must never deduct
+-- again itself, or every allocation would be double-counted.
 CREATE OR REPLACE FUNCTION deduct_supply_on_allocation() RETURNS TRIGGER AS $$
 BEGIN
-  UPDATE Supplies SET quantity = quantity - NEW.quantity_allocated
-  WHERE supply_id = NEW.supply_id;
-
   IF (SELECT quantity FROM Supplies WHERE supply_id = NEW.supply_id) < 0 THEN
     RAISE EXCEPTION 'Allocation exceeds available stock for supply_id %', NEW.supply_id;
   END IF;
