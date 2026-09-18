@@ -1,0 +1,12 @@
+Run this inside your existing public-portal/ folder:
+
+npm install axios leaflet react-leaflet
+npm install --save-dev @types/leaflet
+
+IMPORTANT: @types/leaflet is required, not optional — leaflet ships with
+no TypeScript declarations of its own. Without this package, the map
+component's props (center, zoom, etc.) silently fail to type-check.
+
+Then create a .env file at the project root (same level as package.json):
+
+VITE_API_URL=http://localhost:5000
