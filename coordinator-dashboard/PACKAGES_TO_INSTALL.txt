@@ -1,0 +1,7 @@
+Run this inside your existing coordinator-dashboard/ folder:
+
+npm install axios socket.io-client
+
+Then create a .env file at the project root (same level as package.json):
+
+VITE_API_URL=http://localhost:5000
