@@ -2,8 +2,11 @@
  * ReliefGrid — overbooking concurrency test.
  *
  * Fires 5 simultaneous check-in requests against a shelter with room for 3
- * (see seed.sql, shelter_id 1: capacity_total = 3). Proves checkin_to_shelter()
- * never lets capacity_occupied exceed capacity_total, even under concurrent load.
+ * (see seed.sql, "Government High School Shelter (fabricated)", shelter_id 6:
+ * capacity_total = 3 — the real Kerala-floods shelters seeded as shelter_id
+ * 1-5 all have hundreds+ of free beds and won't exercise this path). Proves
+ * checkin_to_shelter() never lets capacity_occupied exceed capacity_total,
+ * even under concurrent load.
  *
  * Usage:
  *   1. Make sure the server is running (npm run dev) and seed.sql has been run.
@@ -15,7 +18,7 @@ require('dotenv').config();
 
 const API_URL = process.env.API_URL || 'http://localhost:5000';
 const TEST_TOKEN = process.env.TEST_TOKEN || 'PASTE_A_VALID_JWT_HERE';
-const SHELTER_ID = process.env.TEST_SHELTER_ID || 1;
+const SHELTER_ID = process.env.TEST_SHELTER_ID || 6;
 
 async function attemptCheckin(numPeople, label) {
   const res = await fetch(`${API_URL}/api/shelters/${SHELTER_ID}/checkin`, {
