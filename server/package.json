@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "test:concurrency": "node tests/concurrency-test.js"
+    "test:concurrency": "node tests/concurrency-test.js",
     "test:isolation": "node tests/isolation-level-test.js",
     "test:deadlock": "node tests/deadlock-test.js"
   },
