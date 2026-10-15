@@ -7,7 +7,7 @@
 ![Language](https://img.shields.io/badge/language-TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Realtime](https://img.shields.io/badge/realtime-Socket.io-black?logo=socket.io&logoColor=white)
 
-Database-driven disaster relief coordination platform for managing shelters, aid requests, supplies, volunteers, and real-time resource allocation.
+ReliefGrid is a university DBMS course project: a PostgreSQL-centered disaster-relief coordination system for modeling shelters, aid requests, supplies, volunteers, and resource allocation. The web applications exercise the database-backed system; database design, constraints, transactions, and concurrency are the main academic focus.
 
 ---
 
@@ -44,7 +44,7 @@ ReliefGrid is a centralized, database-driven platform that:
 1. Shows **live shelter status** (occupancy %, available/near-full/full) synced in real time across dashboards
 2. **Matches aid seekers to shelters** by distance and actual free space
 3. **Prioritizes requests** by urgency and waiting time
-4. **Guarantees capacity safety under concurrency** — no over-booking, ever (row locking + isolation)
+4. **Protects shelter capacity under concurrent check-ins** — row locking serializes the check-and-update, with a database constraint as a final guard
 5. Makes **supply allocation atomic** — stock deduction, logging, and status update succeed or fail together
 6. **Flags shortages proactively** when stock hits reorder thresholds
 7. **Logs capacity changes** into daily trend views for planning
@@ -65,7 +65,11 @@ In short: **ReliefGrid replaces spreadsheet-and-chat coordination with a transac
 
 ---
 
-## A Note from the Database Perspective
+## DBMS Course Project
 
-Everything ReliefGrid promises above is enforced by PostgreSQL, not by application code. The schema is normalized to BCNF across 10 tables, so shelter, coordinator, and event data each live in exactly one place. Nearest-shelter matching is a stored function (`find_nearest_shelters`), the priority queue is a function (`get_priority_queue`), and shortage alerting is a view (`Critical_Supply_Shortage`) — the Express backend only forwards calls to them. Over-booking is impossible not because we wrote careful JavaScript, but because `checkin_to_shelter()` takes a `FOR UPDATE` row lock before checking capacity, and a trigger logs every capacity change for the trend-reporting materialized view. Supply allocation runs as a single ACID transaction, so stock deduction, allocation logging, and request status either all happen or none do. If you read only one file in this repo, make it `database/schema.sql` — it is the actual product.
+The project demonstrates relational design and PostgreSQL mechanisms, including constraints, stored functions, triggers, views, transactions, row locking, isolation levels, and deadlock handling. `database/schema.sql` is the source for the implemented database behavior; `database/normalization.md` walks through the normalization examples. A full BCNF claim should be supported table by table with functional dependencies and candidate keys.
+
+The safe check-in function (`checkin_to_shelter`) locks the shelter row before checking and changing occupancy. The `Shelters` capacity constraint also rejects occupancy above total capacity. `allocate_supply` locks stock and checks availability; inserting an allocation fires `trg_deduct_supply`, which deducts the quantity. The function then updates request status. These steps run atomically, so a failure rolls back the allocation and deduction together. Capacity changes are logged for the daily trend materialized view, which must be refreshed to include later changes.
+
+The seed combines source-grounded historical context with derived and fabricated operational records. Provenance and limitations are documented in `database/DATA_SOURCES.md`. These records are a small demo dataset, not a live operational dataset. Bulk loading, reproducible scale generation, measured query-plan/performance results, and benchmark plots remain future work. Do not present expected outcomes as measurements.
 
