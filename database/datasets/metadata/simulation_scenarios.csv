@@ -1,0 +1,12 @@
+scenario_id,operation,target_id,inputs,expected,reset
+checkin_success,checkin_to_shelter,6,p_num_people=2,TRUE; capacity_occupied becomes 2,Reload the disposable fixture before each scenario; shelter 6 starts at 0/3.
+checkin_rejects_over_capacity,checkin_to_shelter,6,p_num_people=4,FALSE; occupancy remains 0,Reload the disposable fixture before each scenario.
+concurrent_checkin_demo,server/tests/concurrency-test.js,6,5 concurrent requests x 2 people,One succeeds and four receive 409; final occupancy is 2/3,Run only on a freshly loaded disposable DB; set TEST_SHELTER_ID=6.
+nearest_shelters,find_nearest_shelters,1,in_lat=10.1075;in_lon=76.3516;req_space=2;max_results=5,Returns available active shelters ordered by distance,No reset needed.
+priority_queue,get_priority_queue,,No arguments,Returns 2008 pending requests before mutations,Reload fixture after allocating or changing requests.
+shortage_view,Critical_Supply_Shortage,2,SELECT * WHERE supply_id=2,Water bottles row is below its reorder threshold,No reset needed.
+allocation_success,allocate_supply,2009,p_request_id=2009;p_supply_id=7;p_qty=2,"TRUE; stock decreases, allocation row is inserted, request becomes fulfilled",Reload fixture before each run; initial request 2009 is pending.
+allocation_insufficient_stock,allocate_supply,2010,p_request_id=2010;p_supply_id=7;p_qty=999999,"FALSE; request, stock, and allocation rows remain unchanged",Reload fixture before each run; initial request 2010 is pending.
+capacity_trend,mv_daily_capacity_trend,,"REFRESH MATERIALIZED VIEW, then SELECT",Daily peaks are available for synthetic log rows,No reset needed.
+isolation_demo,server/tests/isolation-level-test.js,1,Default TEST_SHELTER_ID=1,READ COMMITTED and SERIALIZABLE outcomes can be compared,Only disposable DB; script resets occupancy on shelter 1.
+deadlock_demo,server/tests/deadlock-test.js,"1,2",Default TEST_SHELTER_LOW=1;TEST_SHELTER_HIGH=2,One transaction reports SQLSTATE 40P01,Only disposable DB; script changes occupancy on shelters 1 and 2.

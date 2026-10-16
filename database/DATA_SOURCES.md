@@ -5,6 +5,11 @@ wherever possible, with anything we couldn't source publicly clearly marked as
 fabricated. This file documents exactly which rows in `seed.sql` came from where,
 so it can be cited directly in the report/viva.
 
+The larger deterministic CSV fixtures and import instructions are in
+[`database/datasets/README.md`](datasets/README.md). Their table CSVs preserve
+the source/fabricated distinctions below and include synthetic scale data for
+isolated testing.
+
 Three honesty tiers are used throughout `seed.sql`, tagged inline as comments:
 
 - **REAL** — the value is taken directly from a cited source, unchanged.
@@ -66,6 +71,16 @@ day than the district figures above and mixing snapshots would misrepresent both
 as one moment in time — but it's worth citing in the report as corroboration that
 the numbers we did use are the right order of magnitude.
 
+The CSV test-data package additionally includes a separate, directly transcribed
+14-district government snapshot for **20 August 2018** from the Kerala Local Self
+Government Department: 4,033 camps and 719,228 people in camps. The original
+district counts are in
+[`database/datasets/source_snapshots/kerala_2018-08-20_district_camps.csv`](datasets/source_snapshots/kerala_2018-08-20_district_camps.csv).
+These are district aggregates, not individual camps. Corresponding rows in the
+schema-ready shelter CSV are marked `historical_snapshot`; their administrative
+center coordinates and capacity buffers are modeling choices, not source data.
+Source page: https://lsgkerala.gov.in/en/flood-relief/camps-20august2018
+
 **DERIVED simplification, disclosed:** none of these sources report a shelter's
 *designed maximum* capacity — only how many people were actually there at the
 time. So for every real row, `capacity_occupied` = the reported headcount
@@ -118,17 +133,24 @@ into a relief-coordination system" or "what was in stock at 3pm" can exist for
 an event that predates this system. They exist only to exercise the schema's
 concurrency, transaction, and trigger logic (the actual point of the project).
 
-## What we didn't manage to source
+## Additional public source reviewed, but not bundled
 
-- **Individual message-level aid-request text** (the original plan was Figure
-  Eight's "Disaster Response Messages" dataset on Kaggle). That dataset requires
-  a Kaggle account/API download we don't have access to from this environment,
-  so we didn't pull literal message rows from it. Instead we grounded
-  `Aid_Requests` in real place names and real reported need-categories from
-  contemporaneous news coverage, as described above — a reasonable substitute,
-  but worth being upfront that it isn't the exact dataset originally proposed.
-  If you can download it yourself (Kaggle login), it would be worth re-doing
-  this section with actual message text mapped to `request_type`.
-- **Exact GPS coordinates of individual real relief camps** — not published in
-  any source we found; we used approximate town/district-centre coordinates
-  instead, disclosed above.
+The original Kaggle candidate for disaster-response messages could not be
+downloaded in this environment. We found an author-published, openly accessible
+version of Robert Munro's **Disaster Response Messages** dataset: 25,000
+messages split into train/validation/test CSVs, with a CC BY 4.0 license and
+PII-removal/privacy notes documented by the author. The source and its three
+file links are recorded in
+[`database/datasets/metadata/external_sources.csv`](datasets/metadata/external_sources.csv)
+and [`database/datasets/metadata/external_files.csv`](datasets/metadata/external_files.csv).
+The raw CSV files are not in this checkout because the project runtime cannot
+reach the raw file host. If added later, keep this corpus separate from
+`Aid_Requests`: it spans Haiti, Pakistan, Sandy, and news headlines, lacks the
+requester/shelter fields required by ReliefGrid, and the author says not to
+combine it with other data in ways that could identify message authors. The
+expected drop folder is
+[`database/datasets/external/disaster_response_messages/`](datasets/external/disaster_response_messages/).
+
+Exact GPS coordinates for individual real relief camps are not published in the
+sources we found. The schema-ready CSVs use approximate town/district-center
+coordinates and label them as modeling choices.
