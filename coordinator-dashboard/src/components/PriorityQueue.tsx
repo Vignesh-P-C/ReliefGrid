@@ -32,8 +32,10 @@ export default function PriorityQueue() {
   useEffect(() => {
     void fetchQueue();
     socket.on('new-aid-request', fetchQueue);
+    socket.on('supply-allocated', fetchQueue);
     return () => {
       socket.off('new-aid-request', fetchQueue);
+      socket.off('supply-allocated', fetchQueue);
     };
   }, [fetchQueue]);
 

@@ -1,7 +1,64 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type FormEvent } from 'react';
 import api from '../lib/api';
 import { socket } from '../lib/socket';
 import type { ShelterLiveStatus } from '../types';
+
+interface ShelterCheckInProps {
+  shelterId: number;
+  onSuccess: () => void;
+}
+
+function ShelterCheckIn({ shelterId, onSuccess }: ShelterCheckInProps) {
+  const [numPeople, setNumPeople] = useState('1');
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+
+  const submitCheckIn = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const count = Number(numPeople);
+    if (!Number.isInteger(count) || count < 1) {
+      setFeedback({ kind: 'error', message: 'Enter a whole number greater than zero.' });
+      return;
+    }
+
+    setSaving(true);
+    setFeedback(null);
+    try {
+      await api.post(`/shelters/${shelterId}/checkin`, { num_people: count });
+      setFeedback({ kind: 'success', message: `Checked in ${count} ${count === 1 ? 'person' : 'people'}.` });
+      onSuccess();
+    } catch (requestError) {
+      const error = requestError as { response?: { status?: number; data?: { message?: string } } };
+      const message = error.response?.data?.message
+        || (error.response?.status === 409 ? 'This shelter does not have enough space.' : 'Check-in failed. Try again.');
+      setFeedback({ kind: 'error', message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="shelter-action-form" onSubmit={submitCheckIn}>
+      <label className="action-field-label" htmlFor={`checkin-${shelterId}`}>People to check in</label>
+      <div className="action-control-row">
+        <input
+          id={`checkin-${shelterId}`}
+          aria-label={`Number of people to check in at shelter ${shelterId}`}
+          type="number"
+          min="1"
+          step="1"
+          value={numPeople}
+          onChange={(event) => setNumPeople(event.target.value)}
+          required
+        />
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving ? 'Saving…' : 'Check in'}
+        </button>
+      </div>
+      {feedback && <p className={`action-feedback is-${feedback.kind}`} role={feedback.kind === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
+    </form>
+  );
+}
 
 const statusLabels: Record<ShelterLiveStatus['status'], string> = {
   available: 'Available',
@@ -71,7 +128,7 @@ export default function ShelterBoard() {
       ) : (
         <div className="table-scroll">
           <table className="data-table shelter-table">
-            <thead><tr><th scope="col">Shelter</th><th scope="col">Occupancy</th><th scope="col">Utilization</th><th scope="col">Status</th></tr></thead>
+            <thead><tr><th scope="col">Shelter</th><th scope="col">Occupancy</th><th scope="col">Utilization</th><th scope="col">Status</th><th scope="col">Check in</th></tr></thead>
             <tbody>
               {shelters.map((shelter) => {
                 const percentage = Math.min(100, Math.max(0, Number(shelter.occupancy_pct)));
@@ -81,6 +138,7 @@ export default function ShelterBoard() {
                     <td><strong>{shelter.capacity_occupied}</strong><span className="table-muted"> / {shelter.capacity_total} people</span></td>
                     <td className="utilization-cell"><div className="utilization-value">{percentage.toFixed(1)}%</div><div className="capacity-track" aria-label={`${percentage.toFixed(1)} percent occupied`}><span className={`capacity-fill is-${shelter.status}`} style={{ width: `${percentage}%` }} /></div></td>
                     <td><span className={`status-pill is-${shelter.status}`}><span className="status-dot" />{statusLabels[shelter.status]}</span></td>
+                    <td><ShelterCheckIn shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} /></td>
                   </tr>
                 );
               })}

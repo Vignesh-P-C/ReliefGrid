@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -57,9 +57,13 @@ router.get('/ranked', async (req, res) => {
 router.post('/:id/checkin', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { num_people } = req.body;
+  const isPositiveInteger = (typeof num_people === 'number'
+    || (typeof num_people === 'string' && num_people.trim() !== ''))
+    && Number.isInteger(Number(num_people))
+    && Number(num_people) > 0;
 
-  if (!num_people || num_people <= 0) {
-    return res.status(400).json({ message: 'num_people must be a positive number' });
+  if (!isPositiveInteger) {
+    return res.status(400).json({ message: 'num_people must be a positive whole number' });
   }
 
   try {
@@ -76,7 +80,7 @@ router.post('/:id/checkin', requireAuth, async (req, res) => {
 });
 
 // GET /api/shelters/:id/tasks — recursive CTE task-dependency tree for a shelter
-router.get('/:id/tasks', async (req, res) => {
+router.get('/:id/tasks', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
@@ -88,6 +92,7 @@ router.get('/:id/tasks', async (req, res) => {
          SELECT t.task_id, t.parent_task_id, t.description, t.status, tt.depth + 1
          FROM Volunteer_Tasks t
          JOIN task_tree tt ON t.parent_task_id = tt.task_id
+         WHERE t.shelter_id = $1
        )
        SELECT * FROM task_tree ORDER BY depth, task_id`,
       [id]
