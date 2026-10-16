@@ -9,6 +9,16 @@
 
 ReliefGrid is a university DBMS course project: a PostgreSQL-centered disaster-relief coordination system for modeling shelters, aid requests, supplies, volunteers, and resource allocation. The web applications exercise the database-backed system; database design, constraints, transactions, and concurrency are the main academic focus.
 
+## Deployment links
+
+| Service | Open |
+| --- | --- |
+| Vercel projects (public portal and coordinator dashboard) | [Vercel dashboard](https://vercel.com/dashboard) |
+| Render service (backend API) | [Render dashboard](https://dashboard.render.com) |
+| Supabase project (PostgreSQL database) | [Supabase dashboard](https://supabase.com/dashboard) |
+
+These links open the hosting dashboards. The deployed app/API URLs and Supabase project-specific link are not recorded in this repository, so confirm the current deployments in those dashboards before sharing them. Do not add database connection strings, API keys, or other credentials here.
+
 ---
 
 ## Problem Statement — ReliefGrid
