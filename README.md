@@ -13,8 +13,8 @@ ReliefGrid is a university DBMS course project: a PostgreSQL-centered disaster-r
 
 | Service | Open |
 | --- | --- |
-| Vercel projects (public portal and coordinator dashboard) | [Vercel dashboard](https://vercel.com/dashboard) |
-| Render service (backend API) | [Render dashboard](https://dashboard.render.com) |
+| Coordinator Frontend | [Visit](https://relief-grid-egia.vercel.app/) |
+| Public portal Frontend | [Visit](https://relief-grid-five.vercel.app/) |
 | Supabase project (PostgreSQL database) | [Supabase dashboard](https://supabase.com/dashboard) |
 
 These links open the hosting dashboards. The deployed app/API URLs and Supabase project-specific link are not recorded in this repository, so confirm the current deployments in those dashboards before sharing them. Do not add database connection strings, API keys, or other credentials here.
