@@ -71,5 +71,9 @@ The project demonstrates relational design and PostgreSQL mechanisms, including 
 
 The safe check-in function (`checkin_to_shelter`) locks the shelter row before checking and changing occupancy. The `Shelters` capacity constraint also rejects occupancy above total capacity. `allocate_supply` locks stock and checks availability; inserting an allocation fires `trg_deduct_supply`, which deducts the quantity. The function then updates request status. These steps run atomically, so a failure rolls back the allocation and deduction together. Capacity changes are logged for the daily trend materialized view, which must be refreshed to include later changes.
 
-The seed combines source-grounded historical context with derived and fabricated operational records. Provenance and limitations are documented in `database/DATA_SOURCES.md`. These records are a small demo dataset, not a live operational dataset. Bulk loading, reproducible scale generation, measured query-plan/performance results, and benchmark plots remain future work. Do not present expected outcomes as measurements.
+The seed combines source-grounded historical context with derived and fabricated operational records. Provenance and limitations are documented in `database/DATA_SOURCES.md`. These records are a small demo dataset, not a live operational dataset. The CSV package provides reproducible schema-ready simulation fixtures; an automated bulk loader, measured query-plan/performance results, and benchmark plots remain future work. Do not present expected outcomes as measurements.
+
+## Test Data
+
+The [database test-data package](database/datasets/README.md) provides one schema-column-matched CSV for each PostgreSQL table, a cited Kerala district snapshot, provenance metadata, and deterministic synthetic records for simulation scenarios. Load it only into a disposable local database; its fixture accounts cannot authenticate, and the rows are not current relief information.
 
