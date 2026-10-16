@@ -7,11 +7,11 @@
 
 - Keep ReliefGrid framed as a DBMS course project. The interfaces are clients for exercising the database, not the main contribution.
 - Use a hybrid dataset: map suitable source data carefully, and label derived or fabricated operational records. The current seed is small demo data, not a bulk import or a copy of production data.
-- Choose and validate sources, build a field-to-table/provenance map, and only then design any loader or scale generator. Keep generated identities fictional and generated measurements separate from source facts.
+- The CSV package in `database/datasets/` now contains schema-ready fixtures, a source-to-field/provenance map, and deterministic synthetic scale data. The raw disaster-response message corpus remains catalogued but unbundled; keep generated records distinct from historical measurements.
 - Run experiments only on a disposable database with known fixtures. Existing concurrency, isolation, and deadlock demos mutate rows.
 - Record repeatable workload parameters and actual results before plotting. No benchmark measurements or plots should be implied until collected.
 - The frontend refresh is awaiting the user's own testing before the broader project review. Do not treat that review as complete.
-- As checked on 16 October 2026, PR #22 was open with Vercel preview feedback passing; that check was not a backend/database/end-to-end suite. Its current state must be rechecked. Production services observed then were on `main` commit `7fc2244`.
+- As checked on 16 October 2026, PRs #22 and #23 are merged into `main`; PR #32 covers issues #5–#7 and is open for teammate review/merge. Check GitHub and hosting directly before relying on PR or deployment status.
 
 ---
 
@@ -687,3 +687,15 @@ Report should also include: the normalization walkthrough (`database/normalizati
 - **When adding new features, check §3 first** — prefer solutions that map to an untouched or reinforced syllabus module over ones that don't.
 - **Naming:** the project is called **ReliefGrid**. Use this name in READMEs, page titles, commit messages, and any generated docs — not "Disaster Relief System" or generic placeholders.
 - **Don't invent scope** beyond §2's boundaries (no payment processing, no SMS, no multi-region, no PostGIS) unless the user explicitly asks to expand scope.
+
+---
+
+## 18. Test Data and Provenance
+
+- The schema-ready CSV package is in `database/datasets/`. Read `database/datasets/README.md` for table order, `\copy` commands, sequence resets, fixture sizes, and simulation inputs.
+- `database/datasets/postgres/` contains one exact-column-order CSV per schema table. The current package has 10,008 aid requests, 10,000 capacity-log rows, 2,000 allocations, and related keyed fixtures. Regenerate with `node database/datasets/generate_datasets.js`; the fixed seed is `20261016`.
+- `database/datasets/metadata/record_provenance.csv` separates source-grounded figures from derived fields and fictional operational records. Never describe synthetic stock, requests, users, coordinates, or capacity logs as historical measurements.
+- `database/datasets/source_snapshots/kerala_2018-08-20_district_camps.csv` holds a cited, one-day Government of Kerala 14-district extract. Matching schema rows are aggregate historical snapshots and are excluded from active shelter matching.
+- Test users contain only a non-bcrypt marker, not usable credentials. They cannot authenticate; make separate local test credentials if UI login needs testing.
+- The author-published 25,000-message Disaster Response Messages corpus (CC BY 4.0, with privacy restrictions) was identified but its raw CSVs could not be staged from this environment. Expected drop folder: `database/datasets/external/disaster_response_messages/`. Keep it separate from the application tables; it has no ReliefGrid requester/shelter fields and must not be combined to identify message authors.
+- Creating these fixtures does not mean the experiments have been run. Existing database tests still require a disposable database. No bulk loader or general workload runner has been implemented by this dataset task.

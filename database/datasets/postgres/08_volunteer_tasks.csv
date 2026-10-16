@@ -1,0 +1,324 @@
+task_id,shelter_id,volunteer_id,parent_task_id,description,status,priority
+1,1,1,,Set up medical tent,in_progress,1
+2,1,1,1,Stock medical tent with first aid kits,pending,2
+3,1,1,1,Assign a volunteer to staff the tent,pending,2
+4,23,5,,Synthetic task group 023,in_progress,3
+5,23,6,4,Synthetic task 1 for shelter 023,pending,2
+6,23,7,4,Synthetic task 2 for shelter 023,pending,5
+7,23,8,4,Synthetic task 3 for shelter 023,pending,5
+8,23,9,4,Synthetic task 4 for shelter 023,pending,4
+9,23,10,4,Synthetic task 5 for shelter 023,pending,4
+10,23,11,4,Synthetic task 6 for shelter 023,pending,2
+11,23,12,4,Synthetic task 7 for shelter 023,pending,1
+12,23,13,4,Synthetic task 8 for shelter 023,pending,2
+13,23,14,4,Synthetic task 9 for shelter 023,pending,3
+14,24,15,,Synthetic task group 024,in_progress,2
+15,24,16,14,Synthetic task 1 for shelter 024,in_progress,3
+16,24,17,14,Synthetic task 2 for shelter 024,completed,2
+17,24,18,14,Synthetic task 3 for shelter 024,in_progress,5
+18,24,19,14,Synthetic task 4 for shelter 024,completed,5
+19,24,20,14,Synthetic task 5 for shelter 024,in_progress,4
+20,24,21,14,Synthetic task 6 for shelter 024,completed,4
+21,24,22,14,Synthetic task 7 for shelter 024,in_progress,5
+22,24,23,14,Synthetic task 8 for shelter 024,completed,4
+23,24,24,14,Synthetic task 9 for shelter 024,in_progress,4
+24,25,25,,Synthetic task group 025,in_progress,4
+25,25,26,24,Synthetic task 1 for shelter 025,pending,3
+26,25,27,24,Synthetic task 2 for shelter 025,pending,4
+27,25,28,24,Synthetic task 3 for shelter 025,pending,1
+28,25,29,24,Synthetic task 4 for shelter 025,pending,4
+29,25,30,24,Synthetic task 5 for shelter 025,pending,5
+30,25,31,24,Synthetic task 6 for shelter 025,pending,5
+31,25,32,24,Synthetic task 7 for shelter 025,pending,1
+32,25,33,24,Synthetic task 8 for shelter 025,pending,3
+33,25,34,24,Synthetic task 9 for shelter 025,pending,1
+34,26,35,,Synthetic task group 026,in_progress,3
+35,26,36,34,Synthetic task 1 for shelter 026,completed,2
+36,26,37,34,Synthetic task 2 for shelter 026,in_progress,1
+37,26,38,34,Synthetic task 3 for shelter 026,completed,1
+38,26,39,34,Synthetic task 4 for shelter 026,in_progress,3
+39,26,40,34,Synthetic task 5 for shelter 026,completed,1
+40,26,41,34,Synthetic task 6 for shelter 026,in_progress,3
+41,26,42,34,Synthetic task 7 for shelter 026,completed,3
+42,26,43,34,Synthetic task 8 for shelter 026,in_progress,1
+43,26,44,34,Synthetic task 9 for shelter 026,completed,5
+44,27,45,,Synthetic task group 027,in_progress,2
+45,27,46,44,Synthetic task 1 for shelter 027,pending,3
+46,27,47,44,Synthetic task 2 for shelter 027,pending,2
+47,27,48,44,Synthetic task 3 for shelter 027,pending,2
+48,27,49,44,Synthetic task 4 for shelter 027,pending,1
+49,27,50,44,Synthetic task 5 for shelter 027,pending,2
+50,27,51,44,Synthetic task 6 for shelter 027,pending,5
+51,27,52,44,Synthetic task 7 for shelter 027,pending,2
+52,27,53,44,Synthetic task 8 for shelter 027,pending,4
+53,27,54,44,Synthetic task 9 for shelter 027,pending,2
+54,28,55,,Synthetic task group 028,in_progress,2
+55,28,56,54,Synthetic task 1 for shelter 028,in_progress,1
+56,28,57,54,Synthetic task 2 for shelter 028,completed,3
+57,28,58,54,Synthetic task 3 for shelter 028,in_progress,1
+58,28,59,54,Synthetic task 4 for shelter 028,completed,4
+59,28,60,54,Synthetic task 5 for shelter 028,in_progress,1
+60,28,61,54,Synthetic task 6 for shelter 028,completed,4
+61,28,62,54,Synthetic task 7 for shelter 028,in_progress,1
+62,28,63,54,Synthetic task 8 for shelter 028,completed,1
+63,28,64,54,Synthetic task 9 for shelter 028,in_progress,2
+64,29,65,,Synthetic task group 029,in_progress,2
+65,29,66,64,Synthetic task 1 for shelter 029,pending,1
+66,29,67,64,Synthetic task 2 for shelter 029,pending,1
+67,29,68,64,Synthetic task 3 for shelter 029,pending,1
+68,29,69,64,Synthetic task 4 for shelter 029,pending,3
+69,29,70,64,Synthetic task 5 for shelter 029,pending,5
+70,29,71,64,Synthetic task 6 for shelter 029,pending,1
+71,29,72,64,Synthetic task 7 for shelter 029,pending,1
+72,29,73,64,Synthetic task 8 for shelter 029,pending,3
+73,29,74,64,Synthetic task 9 for shelter 029,pending,4
+74,30,75,,Synthetic task group 030,in_progress,4
+75,30,76,74,Synthetic task 1 for shelter 030,completed,2
+76,30,77,74,Synthetic task 2 for shelter 030,in_progress,1
+77,30,78,74,Synthetic task 3 for shelter 030,completed,5
+78,30,79,74,Synthetic task 4 for shelter 030,in_progress,5
+79,30,80,74,Synthetic task 5 for shelter 030,completed,1
+80,30,81,74,Synthetic task 6 for shelter 030,in_progress,5
+81,30,82,74,Synthetic task 7 for shelter 030,completed,3
+82,30,83,74,Synthetic task 8 for shelter 030,in_progress,1
+83,30,84,74,Synthetic task 9 for shelter 030,completed,4
+84,31,85,,Synthetic task group 031,in_progress,3
+85,31,86,84,Synthetic task 1 for shelter 031,pending,1
+86,31,87,84,Synthetic task 2 for shelter 031,pending,3
+87,31,88,84,Synthetic task 3 for shelter 031,pending,3
+88,31,89,84,Synthetic task 4 for shelter 031,pending,2
+89,31,90,84,Synthetic task 5 for shelter 031,pending,1
+90,31,91,84,Synthetic task 6 for shelter 031,pending,4
+91,31,92,84,Synthetic task 7 for shelter 031,pending,3
+92,31,93,84,Synthetic task 8 for shelter 031,pending,4
+93,31,94,84,Synthetic task 9 for shelter 031,pending,5
+94,32,95,,Synthetic task group 032,in_progress,1
+95,32,96,94,Synthetic task 1 for shelter 032,in_progress,1
+96,32,97,94,Synthetic task 2 for shelter 032,completed,1
+97,32,98,94,Synthetic task 3 for shelter 032,in_progress,2
+98,32,99,94,Synthetic task 4 for shelter 032,completed,1
+99,32,100,94,Synthetic task 5 for shelter 032,in_progress,5
+100,32,101,94,Synthetic task 6 for shelter 032,completed,4
+101,32,1,94,Synthetic task 7 for shelter 032,in_progress,1
+102,32,2,94,Synthetic task 8 for shelter 032,completed,2
+103,32,3,94,Synthetic task 9 for shelter 032,in_progress,1
+104,33,4,,Synthetic task group 033,in_progress,3
+105,33,5,104,Synthetic task 1 for shelter 033,pending,1
+106,33,6,104,Synthetic task 2 for shelter 033,pending,5
+107,33,7,104,Synthetic task 3 for shelter 033,pending,1
+108,33,8,104,Synthetic task 4 for shelter 033,pending,5
+109,33,9,104,Synthetic task 5 for shelter 033,pending,1
+110,33,10,104,Synthetic task 6 for shelter 033,pending,1
+111,33,11,104,Synthetic task 7 for shelter 033,pending,1
+112,33,12,104,Synthetic task 8 for shelter 033,pending,1
+113,33,13,104,Synthetic task 9 for shelter 033,pending,2
+114,34,14,,Synthetic task group 034,in_progress,2
+115,34,15,114,Synthetic task 1 for shelter 034,completed,3
+116,34,16,114,Synthetic task 2 for shelter 034,in_progress,3
+117,34,17,114,Synthetic task 3 for shelter 034,completed,1
+118,34,18,114,Synthetic task 4 for shelter 034,in_progress,4
+119,34,19,114,Synthetic task 5 for shelter 034,completed,2
+120,34,20,114,Synthetic task 6 for shelter 034,in_progress,5
+121,34,21,114,Synthetic task 7 for shelter 034,completed,5
+122,34,22,114,Synthetic task 8 for shelter 034,in_progress,5
+123,34,23,114,Synthetic task 9 for shelter 034,completed,5
+124,35,24,,Synthetic task group 035,in_progress,2
+125,35,25,124,Synthetic task 1 for shelter 035,pending,1
+126,35,26,124,Synthetic task 2 for shelter 035,pending,4
+127,35,27,124,Synthetic task 3 for shelter 035,pending,4
+128,35,28,124,Synthetic task 4 for shelter 035,pending,1
+129,35,29,124,Synthetic task 5 for shelter 035,pending,5
+130,35,30,124,Synthetic task 6 for shelter 035,pending,2
+131,35,31,124,Synthetic task 7 for shelter 035,pending,3
+132,35,32,124,Synthetic task 8 for shelter 035,pending,1
+133,35,33,124,Synthetic task 9 for shelter 035,pending,5
+134,36,34,,Synthetic task group 036,in_progress,3
+135,36,35,134,Synthetic task 1 for shelter 036,in_progress,5
+136,36,36,134,Synthetic task 2 for shelter 036,completed,1
+137,36,37,134,Synthetic task 3 for shelter 036,in_progress,2
+138,36,38,134,Synthetic task 4 for shelter 036,completed,1
+139,36,39,134,Synthetic task 5 for shelter 036,in_progress,1
+140,36,40,134,Synthetic task 6 for shelter 036,completed,3
+141,36,41,134,Synthetic task 7 for shelter 036,in_progress,5
+142,36,42,134,Synthetic task 8 for shelter 036,completed,1
+143,36,43,134,Synthetic task 9 for shelter 036,in_progress,2
+144,37,44,,Synthetic task group 037,in_progress,2
+145,37,45,144,Synthetic task 1 for shelter 037,pending,2
+146,37,46,144,Synthetic task 2 for shelter 037,pending,1
+147,37,47,144,Synthetic task 3 for shelter 037,pending,4
+148,37,48,144,Synthetic task 4 for shelter 037,pending,3
+149,37,49,144,Synthetic task 5 for shelter 037,pending,2
+150,37,50,144,Synthetic task 6 for shelter 037,pending,4
+151,37,51,144,Synthetic task 7 for shelter 037,pending,2
+152,37,52,144,Synthetic task 8 for shelter 037,pending,4
+153,37,53,144,Synthetic task 9 for shelter 037,pending,3
+154,38,54,,Synthetic task group 038,in_progress,2
+155,38,55,154,Synthetic task 1 for shelter 038,completed,3
+156,38,56,154,Synthetic task 2 for shelter 038,in_progress,1
+157,38,57,154,Synthetic task 3 for shelter 038,completed,3
+158,38,58,154,Synthetic task 4 for shelter 038,in_progress,3
+159,38,59,154,Synthetic task 5 for shelter 038,completed,5
+160,38,60,154,Synthetic task 6 for shelter 038,in_progress,2
+161,38,61,154,Synthetic task 7 for shelter 038,completed,4
+162,38,62,154,Synthetic task 8 for shelter 038,in_progress,1
+163,38,63,154,Synthetic task 9 for shelter 038,completed,4
+164,39,64,,Synthetic task group 039,in_progress,2
+165,39,65,164,Synthetic task 1 for shelter 039,pending,3
+166,39,66,164,Synthetic task 2 for shelter 039,pending,4
+167,39,67,164,Synthetic task 3 for shelter 039,pending,2
+168,39,68,164,Synthetic task 4 for shelter 039,pending,3
+169,39,69,164,Synthetic task 5 for shelter 039,pending,4
+170,39,70,164,Synthetic task 6 for shelter 039,pending,4
+171,39,71,164,Synthetic task 7 for shelter 039,pending,3
+172,39,72,164,Synthetic task 8 for shelter 039,pending,4
+173,39,73,164,Synthetic task 9 for shelter 039,pending,1
+174,40,74,,Synthetic task group 040,in_progress,3
+175,40,75,174,Synthetic task 1 for shelter 040,in_progress,5
+176,40,76,174,Synthetic task 2 for shelter 040,completed,2
+177,40,77,174,Synthetic task 3 for shelter 040,in_progress,2
+178,40,78,174,Synthetic task 4 for shelter 040,completed,1
+179,40,79,174,Synthetic task 5 for shelter 040,in_progress,4
+180,40,80,174,Synthetic task 6 for shelter 040,completed,1
+181,40,81,174,Synthetic task 7 for shelter 040,in_progress,4
+182,40,82,174,Synthetic task 8 for shelter 040,completed,4
+183,40,83,174,Synthetic task 9 for shelter 040,in_progress,1
+184,41,84,,Synthetic task group 041,in_progress,1
+185,41,85,184,Synthetic task 1 for shelter 041,pending,3
+186,41,86,184,Synthetic task 2 for shelter 041,pending,3
+187,41,87,184,Synthetic task 3 for shelter 041,pending,1
+188,41,88,184,Synthetic task 4 for shelter 041,pending,5
+189,41,89,184,Synthetic task 5 for shelter 041,pending,4
+190,41,90,184,Synthetic task 6 for shelter 041,pending,2
+191,41,91,184,Synthetic task 7 for shelter 041,pending,1
+192,41,92,184,Synthetic task 8 for shelter 041,pending,5
+193,41,93,184,Synthetic task 9 for shelter 041,pending,1
+194,42,94,,Synthetic task group 042,in_progress,2
+195,42,95,194,Synthetic task 1 for shelter 042,completed,3
+196,42,96,194,Synthetic task 2 for shelter 042,in_progress,5
+197,42,97,194,Synthetic task 3 for shelter 042,completed,1
+198,42,98,194,Synthetic task 4 for shelter 042,in_progress,1
+199,42,99,194,Synthetic task 5 for shelter 042,completed,3
+200,42,100,194,Synthetic task 6 for shelter 042,in_progress,3
+201,42,101,194,Synthetic task 7 for shelter 042,completed,2
+202,42,1,194,Synthetic task 8 for shelter 042,in_progress,2
+203,42,2,194,Synthetic task 9 for shelter 042,completed,3
+204,43,3,,Synthetic task group 043,in_progress,5
+205,43,4,204,Synthetic task 1 for shelter 043,pending,5
+206,43,5,204,Synthetic task 2 for shelter 043,pending,4
+207,43,6,204,Synthetic task 3 for shelter 043,pending,4
+208,43,7,204,Synthetic task 4 for shelter 043,pending,1
+209,43,8,204,Synthetic task 5 for shelter 043,pending,2
+210,43,9,204,Synthetic task 6 for shelter 043,pending,2
+211,43,10,204,Synthetic task 7 for shelter 043,pending,5
+212,43,11,204,Synthetic task 8 for shelter 043,pending,3
+213,43,12,204,Synthetic task 9 for shelter 043,pending,2
+214,44,13,,Synthetic task group 044,in_progress,4
+215,44,14,214,Synthetic task 1 for shelter 044,in_progress,2
+216,44,15,214,Synthetic task 2 for shelter 044,completed,1
+217,44,16,214,Synthetic task 3 for shelter 044,in_progress,3
+218,44,17,214,Synthetic task 4 for shelter 044,completed,3
+219,44,18,214,Synthetic task 5 for shelter 044,in_progress,2
+220,44,19,214,Synthetic task 6 for shelter 044,completed,2
+221,44,20,214,Synthetic task 7 for shelter 044,in_progress,1
+222,44,21,214,Synthetic task 8 for shelter 044,completed,2
+223,44,22,214,Synthetic task 9 for shelter 044,in_progress,1
+224,45,23,,Synthetic task group 045,in_progress,1
+225,45,24,224,Synthetic task 1 for shelter 045,pending,4
+226,45,25,224,Synthetic task 2 for shelter 045,pending,1
+227,45,26,224,Synthetic task 3 for shelter 045,pending,2
+228,45,27,224,Synthetic task 4 for shelter 045,pending,1
+229,45,28,224,Synthetic task 5 for shelter 045,pending,3
+230,45,29,224,Synthetic task 6 for shelter 045,pending,2
+231,45,30,224,Synthetic task 7 for shelter 045,pending,1
+232,45,31,224,Synthetic task 8 for shelter 045,pending,1
+233,45,32,224,Synthetic task 9 for shelter 045,pending,4
+234,46,33,,Synthetic task group 046,in_progress,4
+235,46,34,234,Synthetic task 1 for shelter 046,completed,2
+236,46,35,234,Synthetic task 2 for shelter 046,in_progress,4
+237,46,36,234,Synthetic task 3 for shelter 046,completed,1
+238,46,37,234,Synthetic task 4 for shelter 046,in_progress,4
+239,46,38,234,Synthetic task 5 for shelter 046,completed,4
+240,46,39,234,Synthetic task 6 for shelter 046,in_progress,1
+241,46,40,234,Synthetic task 7 for shelter 046,completed,1
+242,46,41,234,Synthetic task 8 for shelter 046,in_progress,1
+243,46,42,234,Synthetic task 9 for shelter 046,completed,3
+244,47,43,,Synthetic task group 047,in_progress,5
+245,47,44,244,Synthetic task 1 for shelter 047,pending,3
+246,47,45,244,Synthetic task 2 for shelter 047,pending,3
+247,47,46,244,Synthetic task 3 for shelter 047,pending,5
+248,47,47,244,Synthetic task 4 for shelter 047,pending,1
+249,47,48,244,Synthetic task 5 for shelter 047,pending,5
+250,47,49,244,Synthetic task 6 for shelter 047,pending,1
+251,47,50,244,Synthetic task 7 for shelter 047,pending,4
+252,47,51,244,Synthetic task 8 for shelter 047,pending,2
+253,47,52,244,Synthetic task 9 for shelter 047,pending,1
+254,48,53,,Synthetic task group 048,in_progress,2
+255,48,54,254,Synthetic task 1 for shelter 048,in_progress,1
+256,48,55,254,Synthetic task 2 for shelter 048,completed,3
+257,48,56,254,Synthetic task 3 for shelter 048,in_progress,1
+258,48,57,254,Synthetic task 4 for shelter 048,completed,3
+259,48,58,254,Synthetic task 5 for shelter 048,in_progress,4
+260,48,59,254,Synthetic task 6 for shelter 048,completed,5
+261,48,60,254,Synthetic task 7 for shelter 048,in_progress,2
+262,48,61,254,Synthetic task 8 for shelter 048,completed,4
+263,48,62,254,Synthetic task 9 for shelter 048,in_progress,2
+264,49,63,,Synthetic task group 049,in_progress,4
+265,49,64,264,Synthetic task 1 for shelter 049,pending,2
+266,49,65,264,Synthetic task 2 for shelter 049,pending,2
+267,49,66,264,Synthetic task 3 for shelter 049,pending,1
+268,49,67,264,Synthetic task 4 for shelter 049,pending,4
+269,49,68,264,Synthetic task 5 for shelter 049,pending,5
+270,49,69,264,Synthetic task 6 for shelter 049,pending,3
+271,49,70,264,Synthetic task 7 for shelter 049,pending,3
+272,49,71,264,Synthetic task 8 for shelter 049,pending,5
+273,49,72,264,Synthetic task 9 for shelter 049,pending,3
+274,50,73,,Synthetic task group 050,in_progress,4
+275,50,74,274,Synthetic task 1 for shelter 050,completed,1
+276,50,75,274,Synthetic task 2 for shelter 050,in_progress,3
+277,50,76,274,Synthetic task 3 for shelter 050,completed,2
+278,50,77,274,Synthetic task 4 for shelter 050,in_progress,5
+279,50,78,274,Synthetic task 5 for shelter 050,completed,2
+280,50,79,274,Synthetic task 6 for shelter 050,in_progress,3
+281,50,80,274,Synthetic task 7 for shelter 050,completed,3
+282,50,81,274,Synthetic task 8 for shelter 050,in_progress,3
+283,50,82,274,Synthetic task 9 for shelter 050,completed,3
+284,51,83,,Synthetic task group 051,in_progress,2
+285,51,84,284,Synthetic task 1 for shelter 051,pending,2
+286,51,85,284,Synthetic task 2 for shelter 051,pending,3
+287,51,86,284,Synthetic task 3 for shelter 051,pending,2
+288,51,87,284,Synthetic task 4 for shelter 051,pending,3
+289,51,88,284,Synthetic task 5 for shelter 051,pending,5
+290,51,89,284,Synthetic task 6 for shelter 051,pending,2
+291,51,90,284,Synthetic task 7 for shelter 051,pending,4
+292,51,91,284,Synthetic task 8 for shelter 051,pending,1
+293,51,92,284,Synthetic task 9 for shelter 051,pending,4
+294,52,93,,Synthetic task group 052,in_progress,3
+295,52,94,294,Synthetic task 1 for shelter 052,in_progress,2
+296,52,95,294,Synthetic task 2 for shelter 052,completed,3
+297,52,96,294,Synthetic task 3 for shelter 052,in_progress,2
+298,52,97,294,Synthetic task 4 for shelter 052,completed,5
+299,52,98,294,Synthetic task 5 for shelter 052,in_progress,3
+300,52,99,294,Synthetic task 6 for shelter 052,completed,4
+301,52,100,294,Synthetic task 7 for shelter 052,in_progress,1
+302,52,101,294,Synthetic task 8 for shelter 052,completed,1
+303,52,1,294,Synthetic task 9 for shelter 052,in_progress,4
+304,53,2,,Synthetic task group 053,in_progress,2
+305,53,3,304,Synthetic task 1 for shelter 053,pending,5
+306,53,4,304,Synthetic task 2 for shelter 053,pending,4
+307,53,5,304,Synthetic task 3 for shelter 053,pending,2
+308,53,6,304,Synthetic task 4 for shelter 053,pending,2
+309,53,7,304,Synthetic task 5 for shelter 053,pending,4
+310,53,8,304,Synthetic task 6 for shelter 053,pending,3
+311,53,9,304,Synthetic task 7 for shelter 053,pending,1
+312,53,10,304,Synthetic task 8 for shelter 053,pending,3
+313,53,11,304,Synthetic task 9 for shelter 053,pending,3
+314,54,12,,Synthetic task group 054,in_progress,5
+315,54,13,314,Synthetic task 1 for shelter 054,completed,5
+316,54,14,314,Synthetic task 2 for shelter 054,in_progress,1
+317,54,15,314,Synthetic task 3 for shelter 054,completed,3
+318,54,16,314,Synthetic task 4 for shelter 054,in_progress,3
+319,54,17,314,Synthetic task 5 for shelter 054,completed,2
+320,54,18,314,Synthetic task 6 for shelter 054,in_progress,3
+321,54,19,314,Synthetic task 7 for shelter 054,completed,2
+322,54,20,314,Synthetic task 8 for shelter 054,in_progress,1
+323,54,21,314,Synthetic task 9 for shelter 054,completed,5

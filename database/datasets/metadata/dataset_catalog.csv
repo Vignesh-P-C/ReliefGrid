@@ -1,0 +1,12 @@
+file,row_count,source_class,load_order
+postgres/01_disaster_events.csv,15,mixed: sourced plus fabricated events,1
+postgres/02_users.csv,104,synthetic operational fixtures,2
+postgres/03_shelters.csv,54,mixed: sourced snapshot plus synthetic shelters,3
+postgres/04_shelter_capacity_log.csv,10000,synthetic operational fixtures,4
+postgres/05_supply_categories.csv,8,synthetic operational fixtures,5
+postgres/06_supplies.csv,165,synthetic operational fixtures,6
+postgres/07_volunteers.csv,101,synthetic operational fixtures,7
+postgres/08_volunteer_tasks.csv,323,synthetic operational fixtures,8
+postgres/09_aid_requests.csv,10008,synthetic operational fixtures,9
+postgres/10_allocations.csv,2000,synthetic operational fixtures,10
+source_snapshots/kerala_2018-08-20_district_camps.csv,14,official public-table extract; source page cited in README,

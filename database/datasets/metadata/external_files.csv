@@ -1,0 +1,4 @@
+source_id,filename,source_url,intended_use,local_status
+SRC-003,disaster_response_training.csv,https://github.com/rmunro/disaster_response_messages/blob/main/disaster_response_training.csv,Separate message-classification research corpus; not a ReliefGrid PostgreSQL table import,Not downloaded; add the author-provided CSV to external/disaster_response_messages/
+SRC-003,disaster_response_validation.csv,https://github.com/rmunro/disaster_response_messages/blob/main/disaster_response_validation.csv,Separate message-classification research corpus; not a ReliefGrid PostgreSQL table import,Not downloaded; add the author-provided CSV to external/disaster_response_messages/
+SRC-003,disaster_response_test.csv,https://github.com/rmunro/disaster_response_messages/blob/main/disaster_response_test.csv,Separate message-classification research corpus; not a ReliefGrid PostgreSQL table import,Not downloaded; add the author-provided CSV to external/disaster_response_messages/

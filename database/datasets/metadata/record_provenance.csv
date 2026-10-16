@@ -1,0 +1,16 @@
+table_name,id_from,id_to,classification,source_url,notes
+Disaster_Events,1,13,source-grounded; some columns derived/editorial,https://iasri.res.in/agridata/23data/chapter1/db2020tb1_9.pdf,13 historical rows based on the seed dataset; severity buckets and selected dates are editorial/derived as documented in database/DATA_SOURCES.md. Kerala death toll comes from the separately cited KSMDA assessment.
+Disaster_Events,14,15,FABRICATED,,Synthetic events retained from seed.sql to exercise cross-event queries.
+Shelters,1,5,reported headcounts with derived/fabricated fields,https://imedia.chennaimath.org/blogs/post/kerala-flood-relief-2018; https://actalliance.org/?p=8994; https://www.thenewsminute.com/article/kerala-floods-1000s-relief-camps-schools-colleges-stay-shut-most-districts-106879; https://www.easternmirrornagaland.com/rains-abate-flood-waters-recede-as-relief-pours-into-kerala,Reported headcounts are source-grounded; total capacity includes a disclosed buffer; coordinates are approximate; contact numbers omitted.
+Shelters,6,8,FABRICATED,,Small operational rows retained from seed.sql for nearest-shelter and concurrency demos.
+Shelters,9,22,source snapshot plus derived/fabricated fields,https://lsgkerala.gov.in/en/flood-relief/camps-20august2018,"Government-reported district camps and occupants as of 2018-08-20. Each row is a district aggregate, not a physical shelter. Capacity buffer, administrative-center coordinates, and status are modeling choices. Kept historical_snapshot so live shelter matching excludes these rows."
+Shelters,23,54,FABRICATED,,Synthetic test shelters with fictional coordinates/contacts omitted; event 14/15; shelter 23 is a small transaction fixture.
+Users,1,104,FABRICATED,,"Fictional test-only records. Phone values use TEST-USER identifiers; password_hash is an invalid non-secret fixture marker, so these rows cannot authenticate."
+Shelter_Capacity_Log,1,10000,FABRICATED,,Deterministic synthetic snapshots for trend and scale tests; not historical observations.
+Supply_Categories,1,8,FABRICATED,,Operational categories for exercising the inventory schema.
+Supplies,1,165,FABRICATED,,"Stock values are simulation inputs. Allocated amounts have already been deducted from the 2,000 recorded synthetic allocation rows."
+Volunteers,1,101,FABRICATED,,Fictional test users only.
+Volunteer_Tasks,1,323,FABRICATED,,Fictional hierarchy; synthetic parent IDs always refer to an earlier task.
+Aid_Requests,1,5,real place/need context; fabricated request records,https://www.deccanherald.com/amp/story/india%2Fkerala-toll-mounts-to-29-over-53000-in-relief-camps-686511.html; https://www.easternmirrornagaland.com/rains-abate-flood-waters-recede-as-relief-pours-into-kerala; https://www.thenewsminute.com/article/kerala-floods-1000s-relief-camps-schools-colleges-stay-shut-most-districts-106879,"Localities and need types are grounded in reporting; requester identity, phone, count, urgency and exact coordinates are fictional."
+Aid_Requests,6,10008,FABRICATED,,Generated with fixed seed 20261016. Requests 9-2008 are fulfilled and have matching allocation records; requests 2009-10008 remain pending.
+Allocations,1,2000,FABRICATED,,Synthetic transaction history; stock CSV values are post-allocation balances.

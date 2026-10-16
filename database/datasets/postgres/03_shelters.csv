@@ -1,0 +1,55 @@
+shelter_id,event_id,name,address,latitude,longitude,capacity_total,capacity_occupied,contact_number,coordinator_id,status
+1,12,Kalady Ashram School Relief Camp,"Kalady, Ernakulam district, Kerala",10.1667,76.4333,3000,2800,,2,active
+2,12,"Ernakulam District Relief Camps (aggregate, 64 camps)","Ernakulam district, Kerala",9.9816,76.2999,9500,9000,,3,active
+3,12,Idukki District Relief Camps (aggregate),"Idukki district, Kerala",9.8534,76.9628,3700,3521,,3,active
+4,12,"Wayanad District Relief Camps (aggregate, 87 camps)","Wayanad district, Kerala",11.6085,76.0851,6400,6111,,2,active
+5,12,Alappuzha District Relief Camps (aggregate),"Alappuzha district, Kerala",9.4981,76.3388,125000,118000,,3,active
+6,14,Government High School Shelter (fabricated),"Trichy Rd, Trichy (fabricated)",10.7905,78.7047,3,0,,2,active
+7,14,Community Hall Shelter (fabricated),"Anna Nagar, Trichy (fabricated)",10.802,78.69,50,12,,3,active
+8,15,Nilgiris Relief Camp (fabricated),"Ooty Rd, Coonoor (fabricated)",11.35,76.8,30,5,,3,active
+9,12,2018-08-20 Thiruvananthapuram district aggregate (114 camps),"Thiruvananthapuram district, Kerala; administrative-center approximation",8.5241,76.9366,8940,8514,,,historical_snapshot
+10,12,2018-08-20 Kollam district aggregate (121 camps),"Kollam district, Kerala; administrative-center approximation",8.8932,76.6141,21649,20618,,,historical_snapshot
+11,12,2018-08-20 Pathanamthitta district aggregate (307 camps),"Pathanamthitta district, Kerala; administrative-center approximation",9.2648,76.787,33374,31784,,,historical_snapshot
+12,12,2018-08-20 Alappuzha district aggregate (695 camps),"Alappuzha district, Kerala; administrative-center approximation",9.4981,76.3388,262145,249661,,,historical_snapshot
+13,12,2018-08-20 Kottayam district aggregate (359 camps),"Kottayam district, Kerala; administrative-center approximation",9.5916,76.5222,65536,62415,,,historical_snapshot
+14,12,2018-08-20 Idukki district aggregate (242 camps),"Idukki district, Kerala; administrative-center approximation",9.8534,76.9628,33725,32119,,,historical_snapshot
+15,12,2018-08-20 Ernakulam district aggregate (544 camps),"Ernakulam district, Kerala; administrative-center approximation",9.9816,76.2999,129754,123575,,,historical_snapshot
+16,12,2018-08-20 Thrissur district aggregate (648 camps),"Thrissur district, Kerala; administrative-center approximation",10.5276,76.2144,108098,102950,,,historical_snapshot
+17,12,2018-08-20 Palakkad district aggregate (98 camps),"Palakkad district, Kerala; administrative-center approximation",10.7867,76.6548,10629,10122,,,historical_snapshot
+18,12,2018-08-20 Malappuram district aggregate (301 camps),"Malappuram district, Kerala; administrative-center approximation",11.051,76.0711,39863,37964,,,historical_snapshot
+19,12,2018-08-20 Kozhikode district aggregate (328 camps),"Kozhikode district, Kerala; administrative-center approximation",11.2588,75.7804,32630,31076,,,historical_snapshot
+20,12,2018-08-20 Wayanad district aggregate (261 camps),"Wayanad district, Kerala; administrative-center approximation",11.6085,76.0851,7300,6952,,,historical_snapshot
+21,12,2018-08-20 Kannur district aggregate (14 camps),"Kannur district, Kerala; administrative-center approximation",11.8745,75.3704,1289,1227,,,historical_snapshot
+22,12,2018-08-20 Kasaragod district aggregate (1 camps),"Kasaragod district, Kerala; administrative-center approximation",12.4996,74.9869,264,251,,,historical_snapshot
+23,14,Synthetic Test Shelter 001,Synthetic location 001,10.7905,78.7047,12,4,,2,active
+24,14,Synthetic Test Shelter 002,Synthetic location 002,10.8025,78.7047,1931,109,,3,active
+25,14,Synthetic Test Shelter 003,Synthetic location 003,10.8145,78.7047,1133,252,,2,active
+26,14,Synthetic Test Shelter 004,Synthetic location 004,10.8265,78.7047,1475,901,,3,active
+27,14,Synthetic Test Shelter 005,Synthetic location 005,10.8385,78.7047,533,403,,2,active
+28,14,Synthetic Test Shelter 006,Synthetic location 006,10.8505,78.7047,1459,914,,3,active
+29,14,Synthetic Test Shelter 007,Synthetic location 007,10.8625,78.7047,945,106,,2,active
+30,14,Synthetic Test Shelter 008,Synthetic location 008,10.8745,78.7047,1915,135,,3,active
+31,14,Synthetic Test Shelter 009,Synthetic location 009,10.7905,78.7187,1721,12,,2,active
+32,14,Synthetic Test Shelter 010,Synthetic location 010,10.8025,78.7187,1651,1301,,3,active
+33,14,Synthetic Test Shelter 011,Synthetic location 011,10.8145,78.7187,577,511,,2,active
+34,14,Synthetic Test Shelter 012,Synthetic location 012,10.8265,78.7187,1903,94,,3,active
+35,14,Synthetic Test Shelter 013,Synthetic location 013,10.8385,78.7187,969,368,,2,active
+36,14,Synthetic Test Shelter 014,Synthetic location 014,10.8505,78.7187,1971,1415,,3,active
+37,14,Synthetic Test Shelter 015,Synthetic location 015,10.8625,78.7187,681,452,,2,active
+38,14,Synthetic Test Shelter 016,Synthetic location 016,10.8745,78.7187,899,21,,3,active
+39,15,Synthetic Test Shelter 017,Synthetic location 017,11.35,76.828,1325,944,,2,active
+40,15,Synthetic Test Shelter 018,Synthetic location 018,11.362,76.828,1019,288,,3,active
+41,15,Synthetic Test Shelter 019,Synthetic location 019,11.374,76.828,1993,272,,2,active
+42,15,Synthetic Test Shelter 020,Synthetic location 020,11.386,76.828,987,742,,3,active
+43,15,Synthetic Test Shelter 021,Synthetic location 021,11.398,76.828,1317,461,,2,active
+44,15,Synthetic Test Shelter 022,Synthetic location 022,11.41,76.828,595,520,,3,active
+45,15,Synthetic Test Shelter 023,Synthetic location 023,11.422,76.828,1957,1542,,2,active
+46,15,Synthetic Test Shelter 024,Synthetic location 024,11.434,76.828,1695,689,,3,active
+47,15,Synthetic Test Shelter 025,Synthetic location 025,11.35,76.842,861,244,,2,active
+48,15,Synthetic Test Shelter 026,Synthetic location 026,11.362,76.842,1883,684,,3,active
+49,15,Synthetic Test Shelter 027,Synthetic location 027,11.374,76.842,1545,1212,,2,active
+50,15,Synthetic Test Shelter 028,Synthetic location 028,11.386,76.842,527,38,,3,active
+51,15,Synthetic Test Shelter 029,Synthetic location 029,11.398,76.842,1845,1080,,2,active
+52,15,Synthetic Test Shelter 030,Synthetic location 030,11.41,76.842,1223,74,,3,active
+53,15,Synthetic Test Shelter 031,Synthetic location 031,11.422,76.842,905,452,,2,active
+54,15,Synthetic Test Shelter 032,Synthetic location 032,11.434,76.842,1103,470,,3,active
