@@ -4,11 +4,12 @@ import ShelterBoard from './components/ShelterBoard';
 import RankedOccupancy from './components/RankedOccupancy';
 import ShortageBanner from './components/ShortageBanner';
 import PriorityQueue from './components/PriorityQueue';
+import VolunteerTaskTree from './components/VolunteerTaskTree';
 import { socket } from './lib/socket';
 import type { AuthUser } from './types';
 import './App.css';
 
-type Tab = 'board' | 'ranked' | 'queue';
+type Tab = 'board' | 'ranked' | 'queue' | 'tasks';
 
 const sections: Record<Tab, { eyebrow: string; title: string; description: string }> = {
   board: {
@@ -25,6 +26,11 @@ const sections: Record<Tab, { eyebrow: string; title: string; description: strin
     eyebrow: 'Incoming requests',
     title: 'Priority queue',
     description: 'Review incoming requests in urgency order and coordinate a response.',
+  },
+  tasks: {
+    eyebrow: 'Volunteer operations',
+    title: 'Task dependency tree',
+    description: 'Follow task dependencies and assigned work at each shelter.',
   },
 };
 
@@ -69,6 +75,9 @@ function App() {
           <button className={tab === 'queue' ? 'nav-item is-active' : 'nav-item'} onClick={() => setTab('queue')} aria-current={tab === 'queue' ? 'page' : undefined}>
             <span className="nav-copy"><strong>Priority queue</strong></span>
           </button>
+          <button className={tab === 'tasks' ? 'nav-item is-active' : 'nav-item'} onClick={() => setTab('tasks')} aria-current={tab === 'tasks' ? 'page' : undefined}>
+            <span className="nav-copy"><strong>Volunteer tasks</strong></span>
+          </button>
         </nav>
       </header>
 
@@ -98,6 +107,7 @@ function App() {
             {tab === 'board' && <ShelterBoard />}
             {tab === 'ranked' && <RankedOccupancy />}
             {tab === 'queue' && <PriorityQueue />}
+            {tab === 'tasks' && <VolunteerTaskTree />}
           </section>
 
           <footer className="ops-footer"><span>ReliefGrid</span><span>Coordinator dashboard</span></footer>

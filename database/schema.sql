@@ -251,8 +251,8 @@ SELECT shelter_id, name, capacity_total, capacity_occupied,
        ELSE 'available' END AS status
 FROM Shelters;
 
-CREATE VIEW Critical_Supply_Shortage AS
-SELECT s.shelter_id, sh.name AS shelter_name, s.item_name, s.quantity, s.reorder_threshold
+CREATE OR REPLACE VIEW Critical_Supply_Shortage AS
+SELECT s.shelter_id, sh.name AS shelter_name, s.item_name, s.quantity, s.reorder_threshold, s.supply_id
 FROM Supplies s JOIN Shelters sh ON s.shelter_id = sh.shelter_id
 WHERE s.quantity <= s.reorder_threshold;
 

@@ -18,17 +18,23 @@ router.get('/shortages', requireAuth, async (req, res) => {
 // POST /api/supplies/allocate — wraps allocate_supply(), the atomic transaction function
 router.post('/allocate', requireAuth, async (req, res) => {
   const { request_id, supply_id, quantity } = req.body;
-  if (!request_id || !supply_id || !quantity) {
-    return res.status(400).json({ message: 'request_id, supply_id, and quantity are required' });
+  const isPositiveInteger = (value) => (
+    (typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))
+    && Number.isInteger(Number(value))
+    && Number(value) > 0
+  );
+  const allocation = { request_id: Number(request_id), supply_id: Number(supply_id), quantity: Number(quantity) };
+  if (!isPositiveInteger(request_id) || !isPositiveInteger(supply_id) || !isPositiveInteger(quantity)) {
+    return res.status(400).json({ message: 'request_id, supply_id, and quantity must be positive whole numbers' });
   }
 
   try {
     const result = await pool.query(
       'SELECT allocate_supply($1, $2, $3) AS success',
-      [request_id, supply_id, quantity]
+      [allocation.request_id, allocation.supply_id, allocation.quantity]
     );
     if (result.rows[0].success) {
-      req.app.get('io').emit('supply-allocated', { request_id, supply_id, quantity });
+      req.app.get('io').emit('supply-allocated', allocation);
       return res.json({ success: true });
     }
     res.status(409).json({ success: false, message: 'Insufficient stock for this allocation' });

@@ -16,6 +16,7 @@ export interface RankedShelter {
 }
 
 export interface ShortageItem {
+  supply_id: number;
   shelter_id: number;
   shelter_name: string;
   item_name: string;
@@ -25,10 +26,18 @@ export interface ShortageItem {
 
 export interface QueuedRequest {
   request_id: number;
-  requester_name: string;
+  requester_name: string | null;
   urgency_level: number;
   num_people: number;
   waiting_minutes: number;
+}
+
+export interface VolunteerTask {
+  task_id: number;
+  parent_task_id: number | null;
+  description: string;
+  status: string;
+  depth: number;
 }
 
 export interface AuthUser {
