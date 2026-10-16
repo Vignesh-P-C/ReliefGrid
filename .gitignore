@@ -37,3 +37,6 @@ coverage/
 # Misc
 *.pem
 *.key
+
+# Local project handoff notes
+HANDOFF.md

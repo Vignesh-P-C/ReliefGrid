@@ -1,11 +1,23 @@
 # ReliefGrid — Project Knowledge Base
 *Full context for AI coding agents. Read this before making any changes.*
 
+> **Current-context note (16 October 2026):** This file includes original design examples and planning notes; some are historical or aspirational. The current project direction and remaining DBMS work are summarized below. Deployment and PR status are dated snapshots; check GitHub and hosting directly before acting on them.
+
+### Current project direction
+
+- Keep ReliefGrid framed as a DBMS course project. The interfaces are clients for exercising the database, not the main contribution.
+- Use a hybrid dataset: map suitable source data carefully, and label derived or fabricated operational records. The current seed is small demo data, not a bulk import or a copy of production data.
+- Choose and validate sources, build a field-to-table/provenance map, and only then design any loader or scale generator. Keep generated identities fictional and generated measurements separate from source facts.
+- Run experiments only on a disposable database with known fixtures. Existing concurrency, isolation, and deadlock demos mutate rows.
+- Record repeatable workload parameters and actual results before plotting. No benchmark measurements or plots should be implied until collected.
+- The frontend refresh is awaiting the user's own testing before the broader project review. Do not treat that review as complete.
+- As checked on 16 October 2026, PR #22 was open with Vercel preview feedback passing; that check was not a backend/database/end-to-end suite. Its current state must be rechecked. Production services observed then were on `main` commit `7fc2244`.
+
 ---
 
 ## 1. What This Project Is
 
-**ReliefGrid** is a Disaster Relief Resource & Shelter Coordination System, built as a **university DBMS course project** (BCSE302L — Database Systems). It is a 4-person, 12-week team project.
+**ReliefGrid** is a Disaster Relief Resource & Shelter Coordination System, built as a **university DBMS course project** (BCSE302L — Database Systems). The four-person team and 12-week schedule below describe the original project plan; verify current team assignments and timing rather than treating them as current status.
 
 **Critical framing — do not lose this:** this is graded as a *database systems* project, not a generic full-stack project. The professor explicitly said projects should not just "have a database" — the database must be the central, load-bearing feature. Concretely, this means:
 - Complex logic (matching, capacity safety, priority ordering, reporting) lives in **stored procedures/functions, triggers, and views inside Postgres** — not in Express/JS application code.
@@ -206,7 +218,7 @@ supply_id       → supply_item, supply_qty, supply_unit
 - **1NF violation:** repeating supply items per shelter → split `Supplies` into its own table.
 - **2NF violation:** partial dependency of shelter attributes on a composite key → split `Shelters` out.
 - **3NF violation:** transitive dependency `shelter_id → coordinator_id → coordinator_name` → split coordinators into `Users`; same logic separates `Disaster_Events`.
-- **BCNF check:** confirmed every determinant in the final tables is a candidate key.
+- **BCNF check:** the walkthrough discusses selected relations. Do not claim that all ten schema tables have been proven BCNF without documenting the functional dependencies and candidate keys for each table. `Shelter_Capacity_Log` and `Supply_Categories` are deliberate design additions, not relations derived only by decomposing the original report.
 
 ---
 
@@ -293,7 +305,7 @@ BEGIN
     RETURN FALSE;
   END IF;
 
-  UPDATE Supplies SET quantity = quantity - p_qty WHERE supply_id = p_supply_id;
+  -- trg_deduct_supply deducts stock when this allocation row is inserted.
   INSERT INTO Allocations(request_id, supply_id, quantity_allocated)
   VALUES (p_request_id, p_supply_id, p_qty);
   UPDATE Aid_Requests SET status = 'fulfilled' WHERE request_id = p_request_id;
@@ -305,11 +317,13 @@ $$ LANGUAGE plpgsql;
 
 ### 7.5 Triggers
 ```sql
--- Auto-deduct + guard against negative stock (belt-and-suspenders alongside allocate_supply)
+-- Deduct stock for each allocation and reject a negative balance.
 CREATE OR REPLACE FUNCTION deduct_supply_on_allocation() RETURNS TRIGGER AS $$
 BEGIN
-  UPDATE Supplies SET quantity = quantity - NEW.quantity_allocated WHERE supply_id = NEW.supply_id;
-  IF (SELECT quantity FROM Supplies WHERE supply_id = NEW.supply_id) < 0 THEN
+  UPDATE Supplies SET quantity = quantity - NEW.quantity_allocated
+  WHERE supply_id = NEW.supply_id
+    AND quantity >= NEW.quantity_allocated;
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Allocation exceeds available stock for supply_id %', NEW.supply_id;
   END IF;
   RETURN NEW;
@@ -393,15 +407,17 @@ REFRESH MATERIALIZED VIEW mv_daily_capacity_trend;
 
 ### 7.10 Indexing
 ```sql
-CREATE INDEX idx_shelters_location ON Shelters(latitude, longitude);  -- B-tree, speeds up range queries
+CREATE INDEX idx_shelters_location ON Shelters(latitude, longitude);  -- B-tree; benefit must be measured for actual queries
 CREATE INDEX idx_users_phone_btree ON Users USING btree(phone);
-CREATE INDEX idx_users_phone_hash ON Users USING hash(phone);          -- faster for exact-match login lookups, but no range/sort support
+CREATE INDEX idx_users_phone_hash ON Users USING hash(phone);          -- exact-match index; do not assume it is faster
 ```
-Baseline vs. after comparison should be captured with `EXPLAIN ANALYZE` and saved to `database/queries/`.
+`Users.phone` is already UNIQUE, which creates an index; the explicit phone B-tree and hash index may therefore be redundant. An index definition is not evidence of a performance benefit. Compare plans and repeated timings on the same disposable dataset, and save results under `database/queries/`. That directory currently has no collected query-plan outputs.
 
 ---
 
-## 8. Concurrency Control — Demo Scripts (Module 6, the strongest part of the project)
+## 8. Concurrency Control — Demo Scripts (Module 6)
+
+The scripts under `server/tests/` write to shelter rows. The isolation demo resets shelter 1 occupancy, the deadlock demo updates shelters 1 and 2, and the check-in demo changes occupancy at its configured shelter (default ID 6). Confirm `DATABASE_URL` points to a disposable database with known fixtures before running any of them. Never use the shared/hosted Supabase database. Seed IDs and row counts are not guarantees about production.
 
 **Isolation level comparison** — run two overlapping sessions:
 ```sql
@@ -539,6 +555,8 @@ router.get('/ranked', async (req, res) => {
 
 ## 10. Frontends
 
+The screen lists and examples below are original scope/design notes, not a verified description of the current UI. Check the actual applications before describing current screens. The presentation priority remains the database behavior; the frontends are clients used to exercise it.
+
 **Coordinator Dashboard** (required screens only — don't add filler admin pages):
 1. Live shelter board — `GET /api/shelters`, subscribes to `shelter-updated` Socket.io event, re-fetches on trigger.
 2. Ranked occupancy view — `GET /api/shelters/ranked` (window function endpoint).
@@ -571,7 +589,7 @@ export default function FindShelter() {
 
 ---
 
-## 11. Team Roles
+## 11. Original Team Role Plan (historical)
 
 | Person | Focus areas |
 |---|---|
@@ -586,9 +604,7 @@ Everyone works across DB, backend, and frontend at different points — the DB w
 
 ## 12. Deployment
 
-- **DB:** Supabase (already live once schema is run).
-- **Backend:** Render — connect repo, root directory `server`, env vars `DATABASE_URL` / `JWT_SECRET`.
-- **Frontends:** Vercel, one project per app (`coordinator-dashboard`, `public-portal`), `VITE_API_URL` pointing at the Render backend URL.
+At the 16 October 2026 checkpoint, the API and coordinator frontend production deployment were observed on `main` commit `7fc2244`; PR #22's frontend changes were in preview. The public portal's canonical production domain had not been independently confirmed. Recheck provider dashboards before relying on this snapshot. These observations do not establish that every environment variable, database permission, or database object was audited. Never copy credentials into this file.
 
 ---
 
@@ -602,7 +618,7 @@ Conceptual tie-in for the report: Postgres uses write-ahead logging (WAL) — ch
 
 ---
 
-## 14. 12-Week Time Budget
+## 14. Original 12-Week Time Budget (historical plan, not progress tracking)
 
 | Weeks | Focus |
 |---|---|

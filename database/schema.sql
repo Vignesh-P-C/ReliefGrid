@@ -177,9 +177,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 2.4 Atomic supply allocation — deduct stock + record allocation + update
--- request status as one unit. If any step fails, all of it rolls back
--- (Module 5: transactions & ACID).
+-- 2.4 Atomic supply allocation — validate stock, insert allocation, and
+-- update request status as one unit. The allocation trigger deducts stock;
+-- if any step fails, all of it rolls back (Module 5: transactions & ACID).
 CREATE OR REPLACE FUNCTION allocate_supply(
   p_request_id INT, p_supply_id INT, p_qty INT
 ) RETURNS BOOLEAN AS $$
@@ -193,7 +193,6 @@ BEGIN
     RETURN FALSE;
   END IF;
 
-  UPDATE Supplies SET quantity = quantity - p_qty WHERE supply_id = p_supply_id;
   INSERT INTO Allocations(request_id, supply_id, quantity_allocated)
   VALUES (p_request_id, p_supply_id, p_qty);
   UPDATE Aid_Requests SET status = 'fulfilled' WHERE request_id = p_request_id;
@@ -207,13 +206,15 @@ $$ LANGUAGE plpgsql;
 -- 3. TRIGGERS
 -- ============================================================
 
--- 3.1 Belt-and-suspenders stock guard on every allocation insert.
--- allocate_supply() already deducts Supplies.quantity under its own row lock —
--- this trigger only CHECKS the post-deduction balance, it must never deduct
--- again itself, or every allocation would be double-counted.
+-- 3.1 Deduct stock for every allocation and reject a negative balance.
 CREATE OR REPLACE FUNCTION deduct_supply_on_allocation() RETURNS TRIGGER AS $$
 BEGIN
-  IF (SELECT quantity FROM Supplies WHERE supply_id = NEW.supply_id) < 0 THEN
+  UPDATE Supplies
+  SET quantity = quantity - NEW.quantity_allocated
+  WHERE supply_id = NEW.supply_id
+    AND quantity >= NEW.quantity_allocated;
+
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Allocation exceeds available stock for supply_id %', NEW.supply_id;
   END IF;
   RETURN NEW;
