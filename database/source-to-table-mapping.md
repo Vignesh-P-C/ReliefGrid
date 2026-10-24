@@ -130,7 +130,7 @@ row-level comparison and retrieval date are not logged.
 
 Context sources: K-05 through K-07 and K-10. Reports establish that
 the localities were affected and describe response needs; none supplies these
-individual requests. In particular SRC-010 lacks a preserved URL.
+individual requests. In particular K-10 lacks a preserved URL.
 
 | `Aid_Requests` destination field | Source field / transformation |
 |---|---|
