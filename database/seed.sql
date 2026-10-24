@@ -17,7 +17,7 @@
 -- disasters since 1990". type/region/(death toll, where given)
 -- are taken directly from that table.
 -- `severity` (1-5) is OUR OWN bucketing of the death toll -- not
--- in the source, flagged FABRICATED (editorial judgment).
+-- in the source, flagged DERIVED/editorial judgment.
 -- Where the source table gives only a year, we used the
 -- well-documented public date for that disaster instead of
 -- Jan 1 (noted per row below).
@@ -53,10 +53,11 @@ INSERT INTO Users (name, phone, email, password_hash, role) VALUES
 -- ------------------------------------------------------------
 -- 2. Shelters — REAL headcounts, anchored on Kerala Floods 2018
 -- Sources report how many people WERE sheltered, not a camp's
--- designed maximum. capacity_occupied = the real reported
--- headcount (REAL). capacity_total = that headcount + a small
--- (~5-8%) headroom buffer we added (DERIVED/FABRICATED) so every
--- real shelter still has nonzero available_space and shows up in
+-- designed maximum. For rows 1-4, capacity_occupied is the reported
+-- headcount (REAL); capacity_total adds modeled headroom. Alappuzha's
+-- source reports 125,000 people, stored as capacity_total, while
+-- capacity_occupied=118,000 is modeled (not source-reported). These
+-- buffers keep the modeled rows from appearing full in
 -- find_nearest_shelters()/checkin_to_shelter() demos — without
 -- this buffer every real row here would read as 100% full and
 -- silently disappear from those queries, which we caught by
