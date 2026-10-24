@@ -45,7 +45,13 @@ It was **not** validated against the live Supabase database, the Render API, or 
 
 The system's claim is that requests are prioritised "by urgency and waiting time". Neither half holds up: urgency is unverified and waiting time is decorative.
 
+**Issue tracking:** Each audit item below links to a detailed GitHub issue. When
+an issue is resolved, tick its checkbox in the same PR that contains the fix;
+the checkbox change should be reviewed and merged with that implementation.
+
 ### 1. Urgency is self-declared with no verification
+
+- [ ] Fix tracked in [#40](https://github.com/Vignesh-P-C/ReliefGrid/issues/40)
 
 **Severity:** Blocker · **Area:** Public portal / triage · **Layer:** DB + Frontend
 
@@ -55,6 +61,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 
 ### 2. Waiting time never promotes anyone
 
+- [ ] Fix tracked in [#41](https://github.com/Vignesh-P-C/ReliefGrid/issues/41)
+
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
 - **What happens** — `get_priority_queue()` sorts with `ORDER BY urgency_level DESC, created_at ASC` (`schema.sql:143`). `waiting_minutes` is computed and returned, but it is only a tie-breaker inside an urgency level.
@@ -62,6 +70,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `database/schema.sql:135–147`, displayed without ageing in `PriorityQueue.tsx`.
 
 ### 3. Urgency is immutable
+
+- [ ] Fix tracked in [#42](https://github.com/Vignesh-P-C/ReliefGrid/issues/42)
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** API + DB
 
@@ -71,6 +81,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 
 ### 4. Nothing measures vulnerability
 
+- [ ] Fix tracked in [#43](https://github.com/Vignesh-P-C/ReliefGrid/issues/43)
+
 **Severity:** Gap · **Area:** Triage · **Layer:** DB
 
 - **What happens** — `Aid_Requests` captures `num_people` and `urgency_level` and nothing else about the people involved: no infants, elderly, disabled, pregnant, or medical-dependency fields.
@@ -78,6 +90,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `Aid_Requests` definition, `database/schema.sql:86–98`.
 
 ### 5. The queue hides the request type
+
+- [ ] Fix tracked in [#44](https://github.com/Vignesh-P-C/ReliefGrid/issues/44)
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
@@ -87,6 +101,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 
 ### 6. No pagination, filter, or sort
 
+- [ ] Fix tracked in [#45](https://github.com/Vignesh-P-C/ReliefGrid/issues/45)
+
 **Severity:** Gap · **Area:** Triage · **Layer:** API + Frontend
 
 - **What happens** — The route runs `SELECT * FROM get_priority_queue()` with no `LIMIT`, and the component maps every row into the table.
@@ -94,6 +110,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `server/routes/aidRequests.js:8`, `PriorityQueue.tsx`.
 
 ### 7. Waiting time is displayed as raw minutes
+
+- [ ] Fix tracked in [#46](https://github.com/Vignesh-P-C/ReliefGrid/issues/46)
 
 **Severity:** Minor · **Area:** Triage · **Layer:** Frontend
 
