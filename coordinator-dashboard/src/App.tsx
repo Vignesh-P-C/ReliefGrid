@@ -164,7 +164,7 @@ function App() {
           <ShortageBanner />
 
           <section className="workspace-panel" aria-label={section.title}>
-            {tab === 'board' && <ShelterBoard />}
+            {tab === 'board' && <ShelterBoard canManage={user.role === 'Admin' || user.role === 'ShelterCoordinator'} />}
             {tab === 'ranked' && <RankedOccupancy />}
             {tab === 'queue' && (
               <PriorityQueue
