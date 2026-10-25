@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../lib/api';
+import { quantityLabel } from '../lib/format';
 import { socket } from '../lib/socket';
 import type { ShortageItem } from '../types';
 
@@ -68,7 +69,7 @@ export default function ShortageBanner({ onAllocate }: ShortageBannerProps) {
                 <span className="shortage-item-name">{shortage.item_name}</span>
                 <span>{shortage.shelter_name}</span>
                 <strong>
-                  {shortage.quantity} {shortage.unit ?? 'left'} left
+                  {quantityLabel(shortage.quantity, shortage.unit)} left
                   <small> · reorder at {shortage.reorder_threshold}</small>
                 </strong>
                 <button
