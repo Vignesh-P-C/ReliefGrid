@@ -77,7 +77,7 @@ In short: **ReliefGrid replaces spreadsheet-and-chat coordination with a transac
 
 ## DBMS Course Project
 
-The project demonstrates relational design and PostgreSQL mechanisms, including constraints, stored functions, triggers, views, transactions, row locking, isolation levels, and deadlock handling. `database/schema.sql` is the source for the implemented database behavior; `database/normalization.md` walks through the normalization examples. A full BCNF claim should be supported table by table with functional dependencies and candidate keys.
+The project demonstrates relational design and PostgreSQL mechanisms, including constraints, stored functions, triggers, views, transactions, row locking, isolation levels, and deadlock handling. `database/schema.sql` is the source for the implemented database behavior; `database/normalization.md` documents the design derivation and table-by-table candidate-key and functional-dependency analysis for all ten tables. Its BCNF conclusions are scoped to the declared DDL constraints and stated assumptions; they do not claim to prove business dependencies the schema does not enforce.
 
 The safe check-in function (`checkin_to_shelter`) locks the shelter row before checking and changing occupancy. The `Shelters` capacity constraint also rejects occupancy above total capacity. `allocate_supply` locks stock and checks availability; inserting an allocation fires `trg_deduct_supply`, which deducts the quantity. The function then updates request status. These steps run atomically, so a failure rolls back the allocation and deduction together. Capacity changes are logged for the daily trend materialized view, which must be refreshed to include later changes.
 
