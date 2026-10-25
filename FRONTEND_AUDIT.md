@@ -45,7 +45,14 @@ It was **not** validated against the live Supabase database, the Render API, or 
 
 The system's claim is that requests are prioritised "by urgency and waiting time". Neither half holds up: urgency is unverified and waiting time is decorative.
 
+**Issue tracking:** All 55 audit items across sections A–G have a checkbox. When
+a tracked issue is resolved, tick its matching checkbox in the same PR that contains
+the fix. Items without a dedicated GitHub issue can use the checkbox to track work
+when they are picked up.
+
 ### 1. Urgency is self-declared with no verification
+
+- [ ] Resolved — tracked in [#48](https://github.com/Vignesh-P-C/ReliefGrid/issues/48)
 
 **Severity:** Blocker · **Area:** Public portal / triage · **Layer:** DB + Frontend
 
@@ -55,6 +62,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 
 ### 2. Waiting time never promotes anyone
 
+- [ ] Resolved — tracked in [#49](https://github.com/Vignesh-P-C/ReliefGrid/issues/49)
+
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
 - **What happens** — `get_priority_queue()` sorts with `ORDER BY urgency_level DESC, created_at ASC` (`schema.sql:143`). `waiting_minutes` is computed and returned, but it is only a tie-breaker inside an urgency level.
@@ -62,6 +71,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `database/schema.sql:135–147`, displayed without ageing in `PriorityQueue.tsx`.
 
 ### 3. Urgency is immutable
+
+- [ ] Resolved
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** API + DB
 
@@ -71,6 +82,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 
 ### 4. Nothing measures vulnerability
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Triage · **Layer:** DB
 
 - **What happens** — `Aid_Requests` captures `num_people` and `urgency_level` and nothing else about the people involved: no infants, elderly, disabled, pregnant, or medical-dependency fields.
@@ -78,6 +91,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `Aid_Requests` definition, `database/schema.sql:86–98`.
 
 ### 5. The queue hides the request type
+
+- [ ] Resolved — tracked in [#50](https://github.com/Vignesh-P-C/ReliefGrid/issues/50)
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
@@ -87,6 +102,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 
 ### 6. No pagination, filter, or sort
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Triage · **Layer:** API + Frontend
 
 - **What happens** — The route runs `SELECT * FROM get_priority_queue()` with no `LIMIT`, and the component maps every row into the table.
@@ -94,6 +111,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `server/routes/aidRequests.js:8`, `PriorityQueue.tsx`.
 
 ### 7. Waiting time is displayed as raw minutes
+
+- [ ] Resolved
 
 **Severity:** Minor · **Area:** Triage · **Layer:** Frontend
 
@@ -109,6 +128,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 8. Allocation is only possible for stock already in crisis
 
+- [ ] Resolved — tracked in [#55](https://github.com/Vignesh-P-C/ReliefGrid/issues/55)
+
 **Severity:** Blocker · **Area:** Allocation · **Layer:** DB + API + Frontend
 
 - **What happens** — The allocation form is rendered inside each row of `Critical_Supply_Shortage`, so an item is allocatable only while `quantity <= reorder_threshold`. There is no inventory endpoint either: `server/routes/supplies.js` exposes only `/shortages` and `/allocate`.
@@ -116,6 +137,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 - **Where** — `ShortageBanner.tsx` renders `<ShortageAllocation>` per shortage row; `Critical_Supply_Shortage` view at `schema.sql:254`; `server/routes/supplies.js`.
 
 ### 9. The request picker is context-free and defaults to the riskiest choice
+
+- [ ] Resolved — tracked in [#56](https://github.com/Vignesh-P-C/ReliefGrid/issues/56)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** Frontend
 
@@ -125,6 +148,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 10. One allocation closes the request regardless of quantity
 
+- [ ] Resolved — tracked in [#57](https://github.com/Vignesh-P-C/ReliefGrid/issues/57)
+
 **Severity:** Blocker · **Area:** Allocation · **Layer:** DB
 
 - **What happens** — `allocate_supply()` inserts the allocation and then runs `UPDATE Aid_Requests SET status = 'fulfilled'` unconditionally (`schema.sql:198`), with no comparison between `quantity_allocated` and `num_people` or need.
@@ -132,6 +157,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 - **Where** — `database/schema.sql:183–203`.
 
 ### 11. Allocations are write-only
+
+- [ ] Resolved — tracked in [#58](https://github.com/Vignesh-P-C/ReliefGrid/issues/58)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** API + Frontend
 
@@ -141,6 +168,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 12. The screen where you triage has no actions
 
+- [ ] Resolved
+
 **Severity:** Blocker · **Area:** Allocation · **Layer:** Frontend
 
 - **What happens** — `PriorityQueue` rows are read-only. Allocation lives in `ShortageBanner`, which `App.tsx` renders above every tab, including Volunteer tasks, rather than beside the request it concerns.
@@ -148,6 +177,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 - **Where** — `App.tsx:109` (banner placement), `PriorityQueue.tsx`.
 
 ### 13. Allocation depends on an unapplied migration
+
+- [ ] Resolved — tracked in [#59](https://github.com/Vignesh-P-C/ReliefGrid/issues/59)
 
 **Severity:** Broken · **Area:** Allocation · **Layer:** DB + Frontend
 
@@ -157,6 +188,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 14. Request type and supply category are never connected
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Allocation · **Layer:** DB
 
 - **What happens** — `Supply_Categories` and `Supplies.category_id` exist, but no query joins them; `Critical_Supply_Shortage` exposes only `item_name`. Allocation ignores `request_type` entirely.
@@ -164,6 +197,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 - **Where** — `Supply_Categories` (`schema.sql:54`), `Supplies` (`schema.sql:59`), `Critical_Supply_Shortage` (`schema.sql:254`).
 
 ### 15. Quantities are unitless in the interface
+
+- [ ] Resolved
 
 **Severity:** Minor · **Area:** Allocation · **Layer:** DB + Frontend
 
@@ -173,6 +208,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 16. Stock can only ever decrease
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Allocation · **Layer:** API + DB + Frontend
 
 - **What happens** — Allocation is the only write path for supplies. There is no donation, restock, transfer-between-shelters, threshold-editing, or new-supply route in `server/routes/supplies.js`, and no shelter write route either.
@@ -181,6 +218,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 17. A destructive action has no confirmation and no idempotency
 
+- [ ] Resolved
+
 **Severity:** Broken · **Area:** Allocation · **Layer:** Frontend + DB
 
 - **What happens** — Pressing "Allocate supply" immediately deducts stock and closes the request. There is no confirmation step, no undo, and `Allocations` has no unique constraint or idempotency key.
@@ -188,6 +227,8 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 - **Where** — `ShortageBanner.tsx` form, `Allocations` table.
 
 ### 18. Allocation does not check the request's state
+
+- [ ] Resolved — tracked in [#60](https://github.com/Vignesh-P-C/ReliefGrid/issues/60)
 
 **Severity:** Broken · **Area:** Allocation · **Layer:** DB
 
@@ -203,6 +244,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 19. There is no checkout
 
+- [ ] Resolved
+
 **Severity:** Blocker · **Area:** Capacity · **Layer:** DB + API + Frontend
 
 - **What happens** — `capacity_occupied` can only be incremented, via `checkin_to_shelter()`. There is no decrement function, no route, and no UI for people leaving. `Shelter_Capacity_Log` therefore records a monotonically rising staircase.
@@ -210,6 +253,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 - **Where** — `database/schema.sql` (no such function), `server/routes/shelters.js`.
 
 ### 20. Check-in ignores whether the shelter is open
+
+- [ ] Resolved
 
 **Severity:** Broken · **Area:** Capacity · **Layer:** DB
 
@@ -219,6 +264,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 21. An unknown shelter ID returns success
 
+- [ ] Resolved
+
 **Severity:** Broken · **Area:** Capacity · **Layer:** DB
 
 - **What happens** — If the row does not exist, `SELECT ... INTO` leaves `occ` and `tot` NULL; `IF occ + p_num_people > tot` evaluates to NULL and is skipped, the `UPDATE` affects zero rows, and the function returns `TRUE`. The route then answers `200 {success: true}` and broadcasts `shelter-updated`.
@@ -226,6 +273,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 - **Where** — `database/schema.sql:163–180`, `server/routes/shelters.js:70`.
 
 ### 22. The board mixes disasters and counts closed shelters as available
+
+- [ ] Resolved
 
 **Severity:** Blocker · **Area:** Capacity · **Layer:** DB
 
@@ -235,6 +284,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 23. Check-in is disconnected from aid requests
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Capacity · **Layer:** DB + API + Frontend
 
 - **What happens** — The route takes only a shelter id and a headcount; there is no `request_id` parameter. `Shelter_Capacity_Log` records the new occupancy with no reference to who was admitted or why.
@@ -243,6 +294,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 24. The check-in form does not respect remaining space
 
+- [ ] Resolved
+
 **Severity:** Minor · **Area:** Capacity · **Layer:** Frontend
 
 - **What happens** — The number input has `min="1"` but no maximum (`ShelterBoard.tsx:47–48`), so any positive integer can be submitted and the refusal arrives as a 409.
@@ -250,6 +303,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 - **Where** — `coordinator-dashboard/src/components/ShelterBoard.tsx:47`.
 
 ### 25. Shelters cannot be created, closed, resized, or edited
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Capacity · **Layer:** API + DB + Frontend
 
@@ -265,6 +320,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 26. Coordinators cannot contact requesters
 
+- [ ] Resolved — tracked in [#51](https://github.com/Vignesh-P-C/ReliefGrid/issues/51)
+
 **Severity:** Blocker · **Area:** Dashboard · **Layer:** DB
 
 - **What happens** — `Aid_Requests.phone` is collected and stored, but `get_priority_queue()` does not return it, and there is no request-detail view to fetch it separately.
@@ -272,6 +329,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 - **Where** — `get_priority_queue()` (`schema.sql:135`), `PriorityQueue.tsx`.
 
 ### 27. Requests carry no location in the dashboard
+
+- [ ] Resolved — tracked in [#52](https://github.com/Vignesh-P-C/ReliefGrid/issues/52)
 
 **Severity:** Gap · **Area:** Dashboard · **Layer:** DB + API + Frontend
 
@@ -281,6 +340,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 28. Disaster events are rendered as bare numbers
 
+- [ ] Resolved — tracked in [#53](https://github.com/Vignesh-P-C/ReliefGrid/issues/53)
+
 **Severity:** Gap · **Area:** Dashboard · **Layer:** API + Frontend
 
 - **What happens** — The ranked query returns `event_id` without joining `Disaster_Events`, and the UI prints "Event 07" (`RankedOccupancy.tsx`).
@@ -288,6 +349,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 - **Where** — `server/routes/shelters.js` ranked query, `RankedOccupancy.tsx`.
 
 ### 29. Rankings go stale and can read "Event null"
+
+- [ ] Resolved
 
 **Severity:** Broken · **Area:** Dashboard · **Layer:** Frontend
 
@@ -297,6 +360,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 30. The task tree is half-blind and stale
 
+- [ ] Resolved
+
 **Severity:** Broken · **Area:** Dashboard · **Layer:** API + Frontend
 
 - **What happens** — The recursive CTE returns `task_id`, `parent_task_id`, `description`, `status`, and `depth` — dropping `volunteer_id` and `priority`, which the table stores. The component also fetches the shelter list once on mount.
@@ -304,6 +369,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 - **Where** — `server/routes/shelters.js:83`, `VolunteerTaskTree.tsx:59`.
 
 ### 31. The "Operational view" indicator is decorative
+
+- [ ] Resolved — tracked in [#54](https://github.com/Vignesh-P-C/ReliefGrid/issues/54)
 
 **Severity:** Blocker · **Area:** Dashboard · **Layer:** Frontend
 
@@ -313,6 +380,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 32. Every failure renders as the same message
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Dashboard · **Layer:** Frontend
 
 - **What happens** — Each component's `catch` sets a "temporarily unavailable" message. A 401 from an expired token, a 403 from a missing role, and a 500 from a server bug are indistinguishable, and nothing redirects to login when the token dies.
@@ -320,6 +389,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 - **Where** — all dashboard components; `lib/api.ts` interceptor.
 
 ### 33. No shelter detail view
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Dashboard · **Layer:** API + Frontend
 
@@ -335,6 +406,8 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 34. Field lengths do not match the database
 
+- [ ] Resolved
+
 **Severity:** Broken · **Area:** Portal · **Layer:** API + DB
 
 - **What happens** — The form allows a 30-character phone and a 120-character name (`RequestForm.tsx:84, 89`), against `VARCHAR(15)` phone and `VARCHAR(100)` name columns. The API validates only presence, so PostgreSQL rejects the row with error 22001 and the route returns a generic 500.
@@ -342,6 +415,8 @@ The portal is the only interface most affected people will ever see, and it curr
 - **Where** — `public-portal/src/components/RequestForm.tsx:84,89`, `Aid_Requests` and `Users` in `schema.sql`, `server/routes/aidRequests.js`.
 
 ### 35. API validation is presence-only
+
+- [ ] Resolved
 
 **Severity:** Broken · **Area:** Portal · **Layer:** API
 
@@ -351,6 +426,8 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 36. The success screen gives no reference number
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Portal · **Layer:** Frontend
 
 - **What happens** — After submission the portal shows a confirmation card with no request id, even though the POST already returns the created row. There is no lookup page or status check.
@@ -358,6 +435,8 @@ The portal is the only interface most affected people will ever see, and it curr
 - **Where** — `public-portal/src/components/RequestForm.tsx`.
 
 ### 37. No deduplication or abuse protection
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Portal · **Layer:** API
 
@@ -367,6 +446,8 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 38. Location is all-or-nothing
 
+- [ ] Resolved
+
 **Severity:** Blocker · **Area:** Portal · **Layer:** Frontend
 
 - **What happens** — Shelter search requires the browser geolocation API. If permission is denied, the device has no GPS, or the request times out, the user gets an error and the search is over — there is no manual town or area entry and no "list all active shelters" fallback.
@@ -374,6 +455,8 @@ The portal is the only interface most affected people will ever see, and it curr
 - **Where** — `public-portal/src/components/FindShelter.tsx:38` and the early-return branch when geolocation is unavailable.
 
 ### 39. Household size is ignored in shelter search
+
+- [ ] Resolved
 
 **Severity:** Blocker · **Area:** Portal · **Layer:** Frontend
 
@@ -383,6 +466,8 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 40. The map only shows the user
 
+- [ ] Resolved
+
 **Severity:** Blocker · **Area:** Portal · **Layer:** DB + Frontend
 
 - **What happens** — `find_nearest_shelters()` returns no coordinates, so `FindShelter` can only place a marker for the user's own position (`FindShelter.tsx:108–110`). No shelter pins, no route, no zoom to fit.
@@ -390,6 +475,8 @@ The portal is the only interface most affected people will ever see, and it curr
 - **Where** — `find_nearest_shelters()` return columns, `FindShelter.tsx:108–110`.
 
 ### 41. Results cannot be acted on
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Portal · **Layer:** DB + Frontend
 
@@ -399,6 +486,8 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 42. Requests have no disaster context
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Portal · **Layer:** Frontend
 
 - **What happens** — The form never sends `event_id`, and the API defaults it to null (`aidRequests.js:31`). There is no event selector or active-event concept anywhere in the portal.
@@ -406,6 +495,8 @@ The portal is the only interface most affected people will ever see, and it curr
 - **Where** — `RequestForm.tsx`, `server/routes/aidRequests.js:31`.
 
 ### 43. No offline or low-bandwidth behaviour
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Portal · **Layer:** Frontend
 
@@ -415,6 +506,8 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 44. Name and phone are both required
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Portal · **Layer:** Frontend
 
 - **What happens** — Both fields are marked `required` and the API rejects requests without them. There is no "on behalf of someone else" path and no way to submit without a phone.
@@ -422,6 +515,8 @@ The portal is the only interface most affected people will ever see, and it curr
 - **Where** — `RequestForm.tsx:84,89`, `server/routes/aidRequests.js:22`.
 
 ### 45. English-only interface
+
+- [ ] Resolved
 
 **Severity:** Minor · **Area:** Portal · **Layer:** Frontend
 
@@ -437,6 +532,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 46. Refreshing the page logs the coordinator out
 
+- [ ] Resolved
+
 **Severity:** Broken · **Area:** Security / session · **Layer:** API + Frontend
 
 - **What happens** — `App` starts with `user = null` (`App.tsx:38`) and never rehydrates from the JWT in `localStorage`. There is no `/api/auth/me` endpoint, so the only way to rebuild the user object is to log in again.
@@ -444,6 +541,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 - **Where** — `coordinator-dashboard/src/App.tsx:38`, `server/routes/auth.js`.
 
 ### 47. Any logged-in role can consume resources
+
+- [ ] Resolved
 
 **Severity:** Blocker · **Area:** Security · **Layer:** API
 
@@ -453,6 +552,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 48. No shelter-level authorization
 
+- [ ] Resolved
+
 **Severity:** Blocker · **Area:** Security · **Layer:** DB + API
 
 - **What happens** — `Shelters.coordinator_id` is populated in the seed but never read by any route or query. There is no scoping by shelter, district, or event.
@@ -460,6 +561,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 - **Where** — `Shelters.coordinator_id` (`schema.sql:32`), all write routes.
 
 ### 49. Socket.IO is unauthenticated and broadcasts personal data
+
+- [ ] Resolved
 
 **Severity:** Blocker · **Area:** Security · **Layer:** API
 
@@ -469,6 +572,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 50. Open CORS, no security headers, no login throttling
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Security · **Layer:** API
 
 - **What happens** — `app.use(cors())` allows any origin; Socket.IO allows `origin: '*'`; there is no helmet, no rate limit, and no account lockout on `/api/auth/login`.
@@ -476,6 +581,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 - **Where** — `server/index.js`, `server/routes/auth.js`.
 
 ### 51. No accountability trail
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Security / audit · **Layer:** DB
 
@@ -489,6 +596,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 52. Status columns are free text
 
+- [ ] Resolved
+
 **Severity:** Broken · **Area:** Integrity · **Layer:** DB
 
 - **What happens** — `Aid_Requests.status`, `Shelters.status`, and `Volunteer_Tasks.status` are `VARCHAR` with defaults and no `CHECK` constraint.
@@ -496,6 +605,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 - **Where** — `database/schema.sql:32–45, 76–98`.
 
 ### 53. Core fields are nullable even though the app assumes them
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Integrity · **Layer:** DB
 
@@ -505,6 +616,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 54. No `updated_at` anywhere
 
+- [ ] Resolved
+
 **Severity:** Gap · **Area:** Integrity · **Layer:** DB
 
 - **What happens** — Only `created_at` exists on requests, and there are no modification timestamps on shelters, supplies, or tasks.
@@ -512,6 +625,8 @@ None of these require a redesign; they are small omissions with outsized consequ
 - **Where** — all tables in `schema.sql`.
 
 ### 55. The trend view is unreachable
+
+- [ ] Resolved
 
 **Severity:** Gap · **Area:** Integrity / reporting · **Layer:** API + Frontend
 
@@ -530,12 +645,14 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ## Suggested order
 
-1. **Truth in the queue** — items 1, 2, 5, 26, 27, 28, 31. Without contact details and request type the queue cannot be acted on, and without ageing it cannot be trusted.
-2. **Allocation integrity** — items 8, 9, 10, 11, 13, 18. This is the workflow you flagged; it needs an inventory read path and a partial-fulfilment state to be correct rather than merely nicer.
+1. **Phase A — Truth in the queue** — items 1, 2, 5, 26, 27, 28, 31 (issues #48–#54). Without contact details and request type the queue cannot be acted on, and without ageing it cannot be trusted.
+2. **Phase 2 — Allocation integrity** — items 8, 9, 10, 11, 13, 18 (issues #55–#60). This is the workflow you flagged; it needs an inventory read path and a partial-fulfilment state to be correct rather than merely nicer.
 3. **Capacity truth** — items 19, 20, 21, 22, 25. Checkout and the status/event filters change every headline number on the dashboard, so do them before polishing the board.
 4. **Portal trust** — items 34, 35, 36, 38, 39, 40, 41, 42. Length limits and validation are quick; household size and manual location are the ones that change whether the portal is usable at all.
 5. **Guardrails** — items 46, 47, 48, 49, 50, 51, plus the status constraints in 52. Small diffs, disproportionate risk reduction.
 6. **Longer term** — items 3, 4, 6, 14, 15, 16, 17, 23, 30, 33, 43, 44, 45, 53, 54, 55.
+
+The priority groups above do not yet place items 7, 12, 24, 29, 32, and 37; sequence these after their scope and dependencies are reviewed.
 
 ## What this document does not establish
 
