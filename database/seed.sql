@@ -132,6 +132,22 @@ INSERT INTO Aid_Requests (event_id, requester_name, phone, latitude, longitude, 
   ((SELECT event_id FROM Disaster_Events WHERE name = 'Cauvery Flood 2026 (fabricated)'), 'Lakshmi Devi (fabricated)', '9222222222', 10.8000, 78.6890, 'shelter', 4, 3, 'pending'),
   ((SELECT event_id FROM Disaster_Events WHERE name = 'Nilgiris Landslide 2026 (fabricated)'), 'Suresh Babu (fabricated)', '9222222223', 11.3480, 76.7990, 'medical', 1, 4, 'pending');
 
+-- What each seeded request actually needs. Quantity follows the reported
+-- headcount, and the supply category is taken from the request type where one
+-- exists ("water" -> Water, "medical" -> Medical). Requests whose type has no
+-- matching category (rescue) are recorded as explicit estimates, which any
+-- compatible item can satisfy. Shelter-only requests get no item need: their
+-- need is a bed, which check-in serves, not stock allocation.
+INSERT INTO Request_Needs (request_id, category_id, item_label, quantity_needed, is_estimate)
+SELECT r.request_id, c.category_id,
+  COALESCE(c.name, 'Unspecified relief items') || ' for ' || r.num_people || ' people',
+  r.num_people, c.category_id IS NULL
+FROM Aid_Requests r
+LEFT JOIN Supply_Categories c ON lower(c.name) = lower(btrim(r.request_type))
+WHERE r.phone LIKE '92222%'
+  AND COALESCE(btrim(r.request_type), '') <> 'shelter'
+  AND NOT EXISTS (SELECT 1 FROM Request_Needs n WHERE n.request_id = r.request_id);
+
 -- ------------------------------------------------------------
 -- Quick sanity checks — run these after seeding
 -- ------------------------------------------------------------
