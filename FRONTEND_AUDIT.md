@@ -128,7 +128,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 8. Allocation is only possible for stock already in crisis
 
-- [ ] Resolved
+- [ ] Resolved — tracked in [#55](https://github.com/Vignesh-P-C/ReliefGrid/issues/55)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** DB + API + Frontend
 
@@ -138,7 +138,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 9. The request picker is context-free and defaults to the riskiest choice
 
-- [ ] Resolved
+- [ ] Resolved — tracked in [#56](https://github.com/Vignesh-P-C/ReliefGrid/issues/56)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** Frontend
 
@@ -148,7 +148,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 10. One allocation closes the request regardless of quantity
 
-- [ ] Resolved
+- [ ] Resolved — tracked in [#57](https://github.com/Vignesh-P-C/ReliefGrid/issues/57)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** DB
 
@@ -158,7 +158,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 11. Allocations are write-only
 
-- [ ] Resolved
+- [ ] Resolved — tracked in [#58](https://github.com/Vignesh-P-C/ReliefGrid/issues/58)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** API + Frontend
 
@@ -178,7 +178,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 13. Allocation depends on an unapplied migration
 
-- [ ] Resolved
+- [ ] Resolved — tracked in [#59](https://github.com/Vignesh-P-C/ReliefGrid/issues/59)
 
 **Severity:** Broken · **Area:** Allocation · **Layer:** DB + Frontend
 
@@ -228,7 +228,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 18. Allocation does not check the request's state
 
-- [ ] Resolved
+- [ ] Resolved — tracked in [#60](https://github.com/Vignesh-P-C/ReliefGrid/issues/60)
 
 **Severity:** Broken · **Area:** Allocation · **Layer:** DB
 
@@ -645,12 +645,14 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ## Suggested order
 
-1. **Truth in the queue** — items 1, 2, 5, 26, 27, 28, 31. Without contact details and request type the queue cannot be acted on, and without ageing it cannot be trusted.
-2. **Allocation integrity** — items 8, 9, 10, 11, 13, 18. This is the workflow you flagged; it needs an inventory read path and a partial-fulfilment state to be correct rather than merely nicer.
+1. **Phase A — Truth in the queue** — items 1, 2, 5, 26, 27, 28, 31 (issues #48–#54). Without contact details and request type the queue cannot be acted on, and without ageing it cannot be trusted.
+2. **Phase 2 — Allocation integrity** — items 8, 9, 10, 11, 13, 18 (issues #55–#60). This is the workflow you flagged; it needs an inventory read path and a partial-fulfilment state to be correct rather than merely nicer.
 3. **Capacity truth** — items 19, 20, 21, 22, 25. Checkout and the status/event filters change every headline number on the dashboard, so do them before polishing the board.
 4. **Portal trust** — items 34, 35, 36, 38, 39, 40, 41, 42. Length limits and validation are quick; household size and manual location are the ones that change whether the portal is usable at all.
 5. **Guardrails** — items 46, 47, 48, 49, 50, 51, plus the status constraints in 52. Small diffs, disproportionate risk reduction.
 6. **Longer term** — items 3, 4, 6, 14, 15, 16, 17, 23, 30, 33, 43, 44, 45, 53, 54, 55.
+
+The priority groups above do not yet place items 7, 12, 24, 29, 32, and 37; sequence these after their scope and dependencies are reviewed.
 
 ## What this document does not establish
 
