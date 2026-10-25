@@ -106,7 +106,7 @@ function App() {
           <section className="workspace-panel" aria-label={section.title}>
             {tab === 'board' && <ShelterBoard />}
             {tab === 'ranked' && <RankedOccupancy />}
-            {tab === 'queue' && <PriorityQueue />}
+            {tab === 'queue' && <PriorityQueue canReview={user.role === 'Admin' || user.role === 'ShelterCoordinator'} />}
             {tab === 'tasks' && <VolunteerTaskTree />}
           </section>
 

@@ -47,6 +47,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 
 ### 1. Urgency is self-declared with no verification
 
+- [x] Resolved — tracked in [#48](https://github.com/Vignesh-P-C/ReliefGrid/issues/48)
+
 **Severity:** Blocker · **Area:** Public portal / triage · **Layer:** DB + Frontend
 
 - **What happens** — The only urgency signal is a 1–5 slider the requester sets themselves (`RequestForm.tsx:109`), pre-set to 3. Nothing else in the system captures the person's condition, so the coordinator receives a number with no evidence behind it.
@@ -54,6 +56,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `public-portal/src/components/RequestForm.tsx`, `get_priority_queue()` in `database/schema.sql:135`, `coordinator-dashboard/src/components/PriorityQueue.tsx`.
 
 ### 2. Waiting time never promotes anyone
+
+- [x] Resolved — tracked in [#49](https://github.com/Vignesh-P-C/ReliefGrid/issues/49)
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
@@ -78,6 +82,8 @@ The system's claim is that requests are prioritised "by urgency and waiting time
 - **Where** — `Aid_Requests` definition, `database/schema.sql:86–98`.
 
 ### 5. The queue hides the request type
+
+- [x] Resolved — tracked in [#50](https://github.com/Vignesh-P-C/ReliefGrid/issues/50)
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
@@ -264,6 +270,8 @@ Occupancy is the number the public portal and the board both depend on, and it i
 The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 26. Coordinators cannot contact requesters
+
+- [x] Resolved — tracked in [#51](https://github.com/Vignesh-P-C/ReliefGrid/issues/51)
 
 **Severity:** Blocker · **Area:** Dashboard · **Layer:** DB
 

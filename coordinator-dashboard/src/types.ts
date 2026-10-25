@@ -27,9 +27,17 @@ export interface ShortageItem {
 export interface QueuedRequest {
   request_id: number;
   requester_name: string | null;
-  urgency_level: number;
+  phone: string | null;
+  request_type: string | null;
+  urgency_level: number | null;
+  reviewed_priority: number | null;
+  reviewed_by: number | null;
+  reviewer_name: string | null;
+  reviewed_at: string | null;
+  effective_priority: number;
   num_people: number;
   waiting_minutes: number;
+  created_at: string;
 }
 
 export interface VolunteerTask {

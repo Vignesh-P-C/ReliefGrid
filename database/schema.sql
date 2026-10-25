@@ -93,8 +93,15 @@ CREATE TABLE Aid_Requests (
   request_type VARCHAR(50),
   num_people INT CHECK (num_people > 0),
   urgency_level SMALLINT CHECK (urgency_level BETWEEN 1 AND 5),
+  reviewed_priority SMALLINT CHECK (reviewed_priority BETWEEN 1 AND 5),
+  reviewed_by INT REFERENCES Users(user_id),
+  reviewed_at TIMESTAMPTZ,
   status VARCHAR(20) DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT now()
+  created_at TIMESTAMP DEFAULT now(),
+  CONSTRAINT aid_requests_review_metadata_complete CHECK (
+    (reviewed_priority IS NULL AND reviewed_by IS NULL AND reviewed_at IS NULL)
+    OR (reviewed_priority IS NOT NULL AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+  )
 );
 
 CREATE TABLE Allocations (
@@ -131,18 +138,46 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 2.2 Priority queue (most urgent, then longest-waiting, first)
+-- 2.2 Priority queue (reviewed priority when set, with one ageing step per 24 hours)
 CREATE OR REPLACE FUNCTION get_priority_queue()
-RETURNS TABLE(request_id INT, requester_name VARCHAR, urgency_level SMALLINT, num_people INT, waiting_minutes NUMERIC) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT r.request_id, r.requester_name, r.urgency_level, r.num_people,
-    ROUND(EXTRACT(EPOCH FROM (now() - r.created_at)) / 60, 1)
+RETURNS TABLE(
+  request_id INT,
+  requester_name VARCHAR,
+  phone VARCHAR,
+  request_type VARCHAR,
+  urgency_level SMALLINT,
+  reviewed_priority SMALLINT,
+  reviewed_by INT,
+  reviewer_name VARCHAR,
+  reviewed_at TIMESTAMPTZ,
+  effective_priority INT,
+  num_people INT,
+  waiting_minutes NUMERIC,
+  created_at TIMESTAMP
+) AS $$
+  SELECT r.request_id, r.requester_name, r.phone, r.request_type,
+    r.urgency_level, r.reviewed_priority, r.reviewed_by, reviewer.name,
+    r.reviewed_at,
+    LEAST(
+      5,
+      COALESCE(r.reviewed_priority, r.urgency_level, 1)
+        + FLOOR(GREATEST(0, EXTRACT(EPOCH FROM (now() - r.created_at)) / 86400))
+    )::INT,
+    r.num_people,
+    ROUND(GREATEST(0, EXTRACT(EPOCH FROM (now() - r.created_at)) / 60), 1),
+    r.created_at
   FROM Aid_Requests r
+  LEFT JOIN Users reviewer ON reviewer.user_id = r.reviewed_by
   WHERE r.status = 'pending'
-  ORDER BY r.urgency_level DESC, r.created_at ASC;
-END;
-$$ LANGUAGE plpgsql;
+  ORDER BY
+    LEAST(
+      5,
+      COALESCE(r.reviewed_priority, r.urgency_level, 1)
+        + FLOOR(GREATEST(0, EXTRACT(EPOCH FROM (now() - r.created_at)) / 86400))
+    ) DESC,
+    r.created_at ASC,
+    r.request_id ASC;
+$$ LANGUAGE sql STABLE;
 
 -- 2.3a UNSAFE check-in — kept ONLY as the "before" example for the report/demo.
 -- Never call this from the application. It has a check-then-update race condition.
