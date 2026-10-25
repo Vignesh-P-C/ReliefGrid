@@ -6,6 +6,20 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Matches Users.name/Users.phone column limits in schema.sql (Audit #34).
+const NAME_MAX_LENGTH = 100;
+const PHONE_MAX_LENGTH = 15;
+
+function validateNameAndPhone(name, phone) {
+  if (typeof name !== 'string' || name.trim() === '' || name.trim().length > NAME_MAX_LENGTH) {
+    return `name is required and must be ${NAME_MAX_LENGTH} characters or fewer`;
+  }
+  if (typeof phone !== 'string' || phone.trim() === '' || phone.trim().length > PHONE_MAX_LENGTH) {
+    return `phone is required and must be ${PHONE_MAX_LENGTH} characters or fewer`;
+  }
+  return null;
+}
+
 async function createUser({ name, phone, email, password, role }, res) {
   const password_hash = await bcrypt.hash(password, 10);
   const result = await pool.query(
@@ -24,9 +38,13 @@ router.post('/register', async (req, res) => {
   if (!name || !phone || !password) {
     return res.status(400).json({ message: 'name, phone, and password are required' });
   }
+  const validationError = validateNameAndPhone(name, phone);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
 
   try {
-    await createUser({ name, phone, email, password, role: 'Volunteer' }, res);
+    await createUser({ name: name.trim(), phone: phone.trim(), email, password, role: 'Volunteer' }, res);
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ message: 'A user with that phone number already exists' });
@@ -43,9 +61,13 @@ router.post('/register/staff', requireAuth, requireRole('Admin'), async (req, re
   if (!name || !phone || !password || !['Admin', 'ShelterCoordinator'].includes(role)) {
     return res.status(400).json({ message: 'name, phone, password, and a role of Admin or ShelterCoordinator are required' });
   }
+  const validationError = validateNameAndPhone(name, phone);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
 
   try {
-    await createUser({ name, phone, email, password, role }, res);
+    await createUser({ name: name.trim(), phone: phone.trim(), email, password, role }, res);
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ message: 'A user with that phone number already exists' });

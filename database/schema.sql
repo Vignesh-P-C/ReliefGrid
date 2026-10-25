@@ -117,10 +117,17 @@ CREATE TABLE Allocations (
 -- 2. FUNCTIONS
 -- ============================================================
 
--- 2.1 Geospatial nearest-shelter matching (haversine distance)
+-- 2.1 Geospatial nearest-shelter matching (haversine distance).
+-- Shelters with enough room for req_space sort first (has_space), but a
+-- full shelter still appears instead of vanishing from the result set —
+-- the caller decides what to do with a "full" nearest option (Audit #41).
 CREATE OR REPLACE FUNCTION find_nearest_shelters(
   in_lat NUMERIC, in_lon NUMERIC, req_space INT, max_results INT
-) RETURNS TABLE(shelter_id INT, name VARCHAR, distance_km NUMERIC, available_space INT) AS $$
+) RETURNS TABLE(
+  shelter_id INT, name VARCHAR, distance_km NUMERIC, available_space INT,
+  latitude NUMERIC, longitude NUMERIC, address TEXT, contact_number VARCHAR,
+  has_space BOOLEAN
+) AS $$
 BEGIN
   RETURN QUERY
   SELECT s.shelter_id, s.name,
@@ -129,13 +136,14 @@ BEGIN
       cos(radians(s.longitude) - radians(in_lon)) +
       sin(radians(in_lat)) * sin(radians(s.latitude))
     ))))::numeric, 2) AS distance_km,
-    (s.capacity_total - s.capacity_occupied) AS available_space
+    (s.capacity_total - s.capacity_occupied) AS available_space,
+    s.latitude, s.longitude, s.address, s.contact_number,
+    (s.capacity_total - s.capacity_occupied) >= req_space AS has_space
   FROM Shelters s
-  WHERE (s.capacity_total - s.capacity_occupied) >= req_space
-    AND s.status = 'active'
+  WHERE s.status = 'active'
     AND in_lat BETWEEN -90 AND 90
     AND in_lon BETWEEN -180 AND 180
-  ORDER BY distance_km ASC
+  ORDER BY has_space DESC, distance_km ASC
   LIMIT max_results;
 END;
 $$ LANGUAGE plpgsql;
