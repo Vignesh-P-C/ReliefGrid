@@ -124,15 +124,17 @@ CREATE OR REPLACE FUNCTION find_nearest_shelters(
 BEGIN
   RETURN QUERY
   SELECT s.shelter_id, s.name,
-    ROUND((6371 * acos(
+    ROUND((6371 * acos(LEAST(1::double precision, GREATEST(-1::double precision,
       cos(radians(in_lat)) * cos(radians(s.latitude)) *
       cos(radians(s.longitude) - radians(in_lon)) +
       sin(radians(in_lat)) * sin(radians(s.latitude))
-    ))::numeric, 2) AS distance_km,
+    ))))::numeric, 2) AS distance_km,
     (s.capacity_total - s.capacity_occupied) AS available_space
   FROM Shelters s
   WHERE (s.capacity_total - s.capacity_occupied) >= req_space
     AND s.status = 'active'
+    AND in_lat BETWEEN -90 AND 90
+    AND in_lon BETWEEN -180 AND 180
   ORDER BY distance_km ASC
   LIMIT max_results;
 END;
@@ -153,7 +155,12 @@ RETURNS TABLE(
   effective_priority INT,
   num_people INT,
   waiting_minutes NUMERIC,
-  created_at TIMESTAMP
+  created_at TIMESTAMP,
+  latitude NUMERIC,
+  longitude NUMERIC,
+  nearest_shelter_name VARCHAR,
+  nearest_shelter_distance_km NUMERIC,
+  nearest_shelter_available_space INT
 ) AS $$
   SELECT r.request_id, r.requester_name, r.phone, r.request_type,
     r.urgency_level, r.reviewed_priority, r.reviewed_by, reviewer.name,
@@ -165,9 +172,24 @@ RETURNS TABLE(
     )::INT,
     r.num_people,
     ROUND(GREATEST(0, EXTRACT(EPOCH FROM (now() - r.created_at)) / 60), 1),
-    r.created_at
+    r.created_at,
+    r.latitude,
+    r.longitude,
+    nearby.name,
+    nearby.distance_km,
+    nearby.available_space
   FROM Aid_Requests r
   LEFT JOIN Users reviewer ON reviewer.user_id = r.reviewed_by
+  LEFT JOIN LATERAL (
+    SELECT shelter.name, shelter.distance_km, shelter.available_space
+    FROM find_nearest_shelters(
+      CASE WHEN r.latitude BETWEEN -90 AND 90 THEN r.latitude END,
+      CASE WHEN r.longitude BETWEEN -180 AND 180 THEN r.longitude END,
+      COALESCE(r.num_people, 1),
+      1
+    ) AS shelter
+    WHERE r.latitude BETWEEN -90 AND 90 AND r.longitude BETWEEN -180 AND 180
+  ) AS nearby ON TRUE
   WHERE r.status = 'pending'
   ORDER BY
     LEAST(

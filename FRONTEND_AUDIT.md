@@ -281,6 +281,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 27. Requests carry no location in the dashboard
 
+- [x] Resolved — tracked in [#52](https://github.com/Vignesh-P-C/ReliefGrid/issues/52)
+
 **Severity:** Gap · **Area:** Dashboard · **Layer:** DB + API + Frontend
 
 - **What happens** — `Aid_Requests` stores latitude and longitude, but the queue function omits them and no dashboard screen calls `find_nearest_shelters()`, even though that function exists and is used by the public portal.
@@ -288,6 +290,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 - **Where** — `find_nearest_shelters()` and `get_priority_queue()` in `schema.sql:114, 135`.
 
 ### 28. Disaster events are rendered as bare numbers
+
+- [x] Resolved — tracked in [#53](https://github.com/Vignesh-P-C/ReliefGrid/issues/53)
 
 **Severity:** Gap · **Area:** Dashboard · **Layer:** API + Frontend
 
@@ -312,6 +316,8 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 - **Where** — `server/routes/shelters.js:83`, `VolunteerTaskTree.tsx:59`.
 
 ### 31. The "Operational view" indicator is decorative
+
+- [x] Resolved — tracked in [#54](https://github.com/Vignesh-P-C/ReliefGrid/issues/54)
 
 **Severity:** Blocker · **Area:** Dashboard · **Layer:** Frontend
 

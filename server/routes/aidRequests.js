@@ -8,11 +8,32 @@ const router = express.Router();
 router.get('/queue', requireAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM get_priority_queue()');
-    const canViewContact = ['Admin', 'ShelterCoordinator'].includes(req.user.role);
-    res.json(result.rows.map((request) => ({
-      ...request,
-      phone: canViewContact ? request.phone : null,
-    })));
+    const canViewSensitiveRequestData = ['Admin', 'ShelterCoordinator'].includes(req.user.role);
+    res.json(result.rows.map((request) => {
+      const latitude = request.latitude === null ? null : Number(request.latitude);
+      const longitude = request.longitude === null ? null : Number(request.longitude);
+      const hasCoordinates = latitude !== null || longitude !== null;
+      const validCoordinates = latitude !== null && longitude !== null
+        && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
+        && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+
+      return {
+        ...request,
+        phone: canViewSensitiveRequestData ? request.phone : null,
+        latitude: canViewSensitiveRequestData && validCoordinates ? latitude : null,
+        longitude: canViewSensitiveRequestData && validCoordinates ? longitude : null,
+        location_status: !canViewSensitiveRequestData
+          ? 'restricted'
+          : validCoordinates ? 'available' : hasCoordinates ? 'invalid' : 'missing',
+        nearest_shelter_name: canViewSensitiveRequestData && validCoordinates ? request.nearest_shelter_name : null,
+        nearest_shelter_distance_km: canViewSensitiveRequestData && validCoordinates && request.nearest_shelter_distance_km !== null
+          ? Number(request.nearest_shelter_distance_km)
+          : null,
+        nearest_shelter_available_space: canViewSensitiveRequestData && validCoordinates
+          ? request.nearest_shelter_available_space
+          : null,
+      };
+    }));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to fetch priority queue' });

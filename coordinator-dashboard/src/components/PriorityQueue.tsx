@@ -5,6 +5,8 @@ import type { QueuedRequest } from '../types';
 
 interface PriorityQueueProps {
   canReview: boolean;
+  onRefreshSuccess: (timestamp: number) => void;
+  onRefreshError: () => void;
 }
 
 function urgencyLabel(level: number) {
@@ -29,7 +31,7 @@ function waitingLabel(minutes: number) {
   return `${Math.floor(minutes)}m`;
 }
 
-export default function PriorityQueue({ canReview }: PriorityQueueProps) {
+export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshError }: PriorityQueueProps) {
   const [queue, setQueue] = useState<QueuedRequest[]>([]);
   const [priorityDrafts, setPriorityDrafts] = useState<Record<number, string>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
@@ -42,20 +44,26 @@ export default function PriorityQueue({ canReview }: PriorityQueueProps) {
       const response = await api.get<QueuedRequest[]>('/aid-requests/queue');
       setQueue(response.data);
       setError('');
+      onRefreshSuccess(Date.now());
     } catch (requestError) {
       console.error('Failed to fetch queue', requestError);
       setError('Requests are temporarily unavailable. Try again in a moment.');
+      onRefreshError();
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onRefreshError, onRefreshSuccess]);
 
   useEffect(() => {
     void fetchQueue();
+    socket.on('connect', fetchQueue);
     socket.on('new-aid-request', fetchQueue);
     socket.on('supply-allocated', fetchQueue);
     socket.on('aid-request-reviewed', fetchQueue);
+    const refreshTimer = window.setInterval(() => { void fetchQueue(); }, 60_000);
     return () => {
+      window.clearInterval(refreshTimer);
+      socket.off('connect', fetchQueue);
       socket.off('new-aid-request', fetchQueue);
       socket.off('supply-allocated', fetchQueue);
       socket.off('aid-request-reviewed', fetchQueue);
@@ -109,6 +117,7 @@ export default function PriorityQueue({ canReview }: PriorityQueueProps) {
               <tr>
                 <th scope="col">Requester</th>
                 <th scope="col">Contact</th>
+                <th className="queue-location" scope="col">Reported location</th>
                 <th scope="col">Request type</th>
                 <th scope="col">Reported urgency</th>
                 <th scope="col">Reviewed priority</th>
@@ -128,6 +137,34 @@ export default function PriorityQueue({ canReview }: PriorityQueueProps) {
                       {request.phone
                         ? <a className="queue-contact" href={`tel:${request.phone}`}>{request.phone}</a>
                         : <span className="table-muted">{canReview ? 'Not provided' : 'Staff only'}</span>}
+                    </td>
+                    <td className="queue-location">
+                      {request.location_status === 'available' && request.latitude !== null && request.longitude !== null ? (
+                        <>
+                          <a
+                            className="queue-contact"
+                            href={`https://www.openstreetmap.org/?mlat=${request.latitude}&mlon=${request.longitude}#map=15/${request.latitude}/${request.longitude}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View map
+                          </a>
+                          <small className="table-secondary">{request.latitude.toFixed(4)}, {request.longitude.toFixed(4)}</small>
+                          {request.nearest_shelter_name && request.nearest_shelter_distance_km !== null ? (
+                            <small className="table-secondary">
+                              Closest with room: {request.nearest_shelter_name} · {request.nearest_shelter_distance_km.toFixed(1)} km · {request.nearest_shelter_available_space ?? 'Unknown'} places
+                            </small>
+                          ) : (
+                            <small className="table-secondary">No active shelter with recorded room for this group</small>
+                          )}
+                        </>
+                      ) : (
+                        <span className="table-muted">
+                          {request.location_status === 'restricted' ? 'Staff only'
+                            : request.location_status === 'invalid' ? 'Coordinates unavailable'
+                              : 'Not provided'}
+                        </span>
+                      )}
                     </td>
                     <td>{request.request_type?.trim() || <span className="table-muted">Not specified</span>}</td>
                     <td>{reportedUrgency === null

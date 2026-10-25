@@ -10,7 +10,8 @@ export interface ShelterLiveStatus {
 export interface RankedShelter {
   shelter_id: number;
   name: string;
-  event_id: number;
+  event_id: number | null;
+  event_name: string | null;
   occupancy_pct: number;
   occupancy_rank: number;
 }
@@ -38,6 +39,12 @@ export interface QueuedRequest {
   num_people: number;
   waiting_minutes: number;
   created_at: string;
+  location_status: 'available' | 'missing' | 'invalid' | 'restricted';
+  latitude: number | null;
+  longitude: number | null;
+  nearest_shelter_name: string | null;
+  nearest_shelter_distance_km: number | null;
+  nearest_shelter_available_space: number | null;
 }
 
 export interface VolunteerTask {

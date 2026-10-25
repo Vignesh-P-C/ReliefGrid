@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Login from './components/Login';
 import ShelterBoard from './components/ShelterBoard';
 import RankedOccupancy from './components/RankedOccupancy';
@@ -10,6 +10,7 @@ import type { AuthUser } from './types';
 import './App.css';
 
 type Tab = 'board' | 'ranked' | 'queue' | 'tasks';
+type SocketStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 const sections: Record<Tab, { eyebrow: string; title: string; description: string }> = {
   board: {
@@ -37,20 +38,76 @@ const sections: Record<Tab, { eyebrow: string; title: string; description: strin
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [tab, setTab] = useState<Tab>('board');
+  const [socketStatus, setSocketStatus] = useState<SocketStatus>('disconnected');
+  const [queueRefresh, setQueueRefresh] = useState<{ lastSuccessfulAt: number | null; failed: boolean }>({ lastSuccessfulAt: null, failed: false });
+  const [clockNow, setClockNow] = useState(Date.now());
 
   useEffect(() => {
-    if (!user) return;
-    socket.connect();
+    if (!user) {
+      setSocketStatus('disconnected');
+      return;
+    }
+
+    let hasConnected = socket.connected;
+    setSocketStatus(hasConnected ? 'connected' : 'connecting');
+    const handleConnect = () => {
+      hasConnected = true;
+      setSocketStatus('connected');
+    };
+    const handleDisconnect = (reason: string) => {
+      setSocketStatus(hasConnected ? 'reconnecting' : 'disconnected');
+      if (reason === 'io server disconnect') socket.connect();
+    };
+    const handleConnectError = () => setSocketStatus(hasConnected ? 'reconnecting' : 'connecting');
+    const handleReconnectAttempt = () => setSocketStatus('reconnecting');
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.io.on('reconnect_attempt', handleReconnectAttempt);
+    if (!socket.connected) socket.connect();
+
     return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.io.off('reconnect_attempt', handleReconnectAttempt);
       socket.disconnect();
+      setSocketStatus('disconnected');
     };
   }, [user]);
+
+  useEffect(() => {
+    const clockTimer = window.setInterval(() => setClockNow(Date.now()), 15_000);
+    return () => window.clearInterval(clockTimer);
+  }, []);
+
+  const handleQueueRefreshSuccess = useCallback((timestamp: number) => {
+    setQueueRefresh({ lastSuccessfulAt: timestamp, failed: false });
+  }, []);
+  const handleQueueRefreshError = useCallback(() => {
+    setQueueRefresh((current) => ({ ...current, failed: true }));
+  }, []);
 
   if (!user) {
     return <Login onLoggedIn={setUser} />;
   }
 
   const section = sections[tab];
+  const queueIsFresh = queueRefresh.lastSuccessfulAt !== null
+    && !queueRefresh.failed
+    && clockNow - queueRefresh.lastSuccessfulAt <= 120_000;
+  const lastQueueRefresh = queueRefresh.lastSuccessfulAt
+    ? new Date(queueRefresh.lastSuccessfulAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : 'not refreshed yet';
+  const liveStatusText = socketStatus === 'connected'
+    ? queueIsFresh ? `Live · queue refreshed ${lastQueueRefresh}` : `Connected · queue stale (last ${lastQueueRefresh})`
+    : socketStatus === 'reconnecting' ? `Reconnecting · queue may be stale (last ${lastQueueRefresh})`
+      : socketStatus === 'connecting' ? `Connecting · queue last refreshed ${lastQueueRefresh}`
+        : `Disconnected · queue may be stale (last ${lastQueueRefresh})`;
+  const liveStatusClass = socketStatus === 'connected'
+    ? queueIsFresh ? 'is-connected' : 'is-stale'
+    : `is-${socketStatus}`;
 
   const signOut = () => {
     localStorage.removeItem('reliefgrid_token');
@@ -98,7 +155,10 @@ function App() {
               <h1 id="page-title">{section.title}</h1>
               <p className="page-description">{section.description}</p>
             </div>
-            <div className="live-indicator"><span className="status-dot" /> Operational view</div>
+            <div className={`live-indicator ${liveStatusClass}`} role="status" aria-live="polite">
+              <span className="status-dot" />
+              <span>{liveStatusText}</span>
+            </div>
           </section>
 
           <ShortageBanner />
@@ -106,7 +166,13 @@ function App() {
           <section className="workspace-panel" aria-label={section.title}>
             {tab === 'board' && <ShelterBoard />}
             {tab === 'ranked' && <RankedOccupancy />}
-            {tab === 'queue' && <PriorityQueue canReview={user.role === 'Admin' || user.role === 'ShelterCoordinator'} />}
+            {tab === 'queue' && (
+              <PriorityQueue
+                canReview={user.role === 'Admin' || user.role === 'ShelterCoordinator'}
+                onRefreshSuccess={handleQueueRefreshSuccess}
+                onRefreshError={handleQueueRefreshError}
+              />
+            )}
             {tab === 'tasks' && <VolunteerTaskTree />}
           </section>
 

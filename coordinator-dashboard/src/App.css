@@ -78,7 +78,10 @@
 .eyebrow { margin: 0; color: var(--green); font-size: 10px; font-weight: 700; letter-spacing: .65px; text-transform: uppercase; }
 .page-intro h1 { margin: 7px 0 5px; color: var(--ink); font-size: clamp(28px, 3vw, 36px); line-height: 1.2; letter-spacing: -.6px; }
 .page-description { max-width: 560px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
-.live-indicator { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-bottom: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 10px; }
+.live-indicator { display: flex; max-width: 320px; flex: 0 0 auto; align-items: center; gap: 8px; margin-bottom: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 10px; line-height: 1.45; }
+.live-indicator.is-connected .status-dot { background: var(--green); }
+.live-indicator.is-reconnecting .status-dot, .live-indicator.is-connecting .status-dot { background: var(--amber); }
+.live-indicator.is-stale .status-dot, .live-indicator.is-disconnected .status-dot { background: var(--red); }
 .status-dot { display: inline-block; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--green); }
 .workspace-panel { min-height: 340px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 8px rgb(28 66 43 / 4%); }
 .ops-footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 16px; color: var(--quiet); font-size: 10px; }
@@ -157,7 +160,8 @@
 .table-primary { color: var(--ink); font-size: 12px; font-weight: 600; }
 .table-secondary { margin-top: 3px; color: var(--quiet); font-size: 10px; }
 .table-muted { color: var(--muted); }
-.queue-table { min-width: 1180px; }
+.queue-table { min-width: 1420px; }
+.queue-location { min-width: 210px; }
 .queue-contact { color: var(--green-dark); font-weight: 600; text-decoration-thickness: 1px; text-underline-offset: 2px; white-space: nowrap; }
 .queue-review-state { display: inline-block; color: var(--muted); font-size: 11px; }
 .queue-review-form { display: grid; min-width: 145px; gap: 6px; margin-top: 8px; }
@@ -281,7 +285,7 @@
   .task-tree-heading { align-items: stretch; }
   .shortage-heading { align-items: flex-start; }
   .data-table { min-width: 570px; }
-  .queue-table { min-width: 1180px; }
+  .queue-table { min-width: 1420px; }
   .ops-footer { font-size: 9px; }
   .login-shell { grid-template-columns: 1fr; }
   .login-story { min-height: 260px; padding: 20px 22px; }
