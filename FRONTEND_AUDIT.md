@@ -128,7 +128,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 8. Allocation is only possible for stock already in crisis
 
-- [ ] Resolved — tracked in [#55](https://github.com/Vignesh-P-C/ReliefGrid/issues/55)
+- [x] Resolved — tracked in [#55](https://github.com/Vignesh-P-C/ReliefGrid/issues/55)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** DB + API + Frontend
 
@@ -138,7 +138,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 9. The request picker is context-free and defaults to the riskiest choice
 
-- [ ] Resolved — tracked in [#56](https://github.com/Vignesh-P-C/ReliefGrid/issues/56)
+- [x] Resolved — tracked in [#56](https://github.com/Vignesh-P-C/ReliefGrid/issues/56)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** Frontend
 
@@ -148,7 +148,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 10. One allocation closes the request regardless of quantity
 
-- [ ] Resolved — tracked in [#57](https://github.com/Vignesh-P-C/ReliefGrid/issues/57)
+- [x] Resolved — tracked in [#57](https://github.com/Vignesh-P-C/ReliefGrid/issues/57)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** DB
 
@@ -158,7 +158,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 11. Allocations are write-only
 
-- [ ] Resolved — tracked in [#58](https://github.com/Vignesh-P-C/ReliefGrid/issues/58)
+- [x] Resolved — tracked in [#58](https://github.com/Vignesh-P-C/ReliefGrid/issues/58)
 
 **Severity:** Blocker · **Area:** Allocation · **Layer:** API + Frontend
 
@@ -178,7 +178,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 13. Allocation depends on an unapplied migration
 
-- [ ] Resolved — tracked in [#59](https://github.com/Vignesh-P-C/ReliefGrid/issues/59)
+- [x] Resolved — tracked in [#59](https://github.com/Vignesh-P-C/ReliefGrid/issues/59)
 
 **Severity:** Broken · **Area:** Allocation · **Layer:** DB + Frontend
 
@@ -228,7 +228,7 @@ This is the area you flagged, and it is the weakest workflow in the product: the
 
 ### 18. Allocation does not check the request's state
 
-- [ ] Resolved — tracked in [#60](https://github.com/Vignesh-P-C/ReliefGrid/issues/60)
+- [x] Resolved — tracked in [#60](https://github.com/Vignesh-P-C/ReliefGrid/issues/60)
 
 **Severity:** Broken · **Area:** Allocation · **Layer:** DB
 

@@ -123,6 +123,7 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
                 <th scope="col">Reviewed priority</th>
                 <th scope="col">Queue priority</th>
                 <th scope="col">People</th>
+                <th className="queue-needs" scope="col">Items still needed</th>
                 <th scope="col">Waiting</th>
               </tr>
             </thead>
@@ -132,7 +133,13 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
                 const reportedUrgency = request.urgency_level;
                 return (
                   <tr key={request.request_id}>
-                    <td><strong className="table-primary">{request.requester_name || 'Unnamed requester'}</strong><small className="table-secondary">Request {String(request.request_id).padStart(4, '0')}</small></td>
+                    <td>
+                      <strong className="table-primary">{request.requester_name || 'Unnamed requester'}</strong>
+                      <small className="table-secondary">
+                        Request {String(request.request_id).padStart(4, '0')}
+                        {request.status === 'partially_fulfilled' ? ' · partly served' : ''}
+                      </small>
+                    </td>
                     <td>
                       {request.phone
                         ? <a className="queue-contact" href={`tel:${request.phone}`}>{request.phone}</a>
@@ -201,7 +208,28 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
                     </td>
                     <td><span className={`urgency-pill urgency-${request.effective_priority}`}><span className="urgency-dot" />{urgencyLabel(request.effective_priority)}<small>{request.effective_priority}/5 · for order</small></span></td>
                     <td>{request.num_people} {request.num_people === 1 ? 'person' : 'people'}</td>
-                    <td>{waitingLabel(request.waiting_minutes)}</td>
+                    <td className="queue-needs">
+                      {request.needs.length === 0 ? (
+                        <span className="table-muted">No item needs · shelter only</span>
+                      ) : (
+                        <ul className="need-list">
+                          {request.needs.map((need) => {
+                            const remaining = Math.max(0, need.quantity_needed - need.quantity_allocated);
+                            return (
+                              <li key={need.need_id} className={remaining === 0 ? 'is-met' : undefined}>
+                                <span>{need.item_label}</span>
+                                <small>
+                                  {need.quantity_allocated}/{need.quantity_needed} sent
+                                  {need.is_estimate ? ' · estimate' : ''}
+                                  {remaining > 0 ? ` · ${remaining} left` : ' · met'}
+                                </small>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </td>
+                    <td>{waitingLabel(Number(request.waiting_minutes))}</td>
                   </tr>
                 );
               })}
@@ -210,7 +238,7 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
         </div>
       )}
       {reviewError && <p className="action-feedback is-error" role="alert">{reviewError}</p>}
-      <p className="module-footnote"><span className="status-dot" /> Queue score starts from reported urgency until reviewed, then from staff priority. It rises one level every 24 hours, up to 5. New requests appear automatically.</p>
+      <p className="module-footnote"><span className="status-dot" /> Queue score starts from reported urgency until reviewed, then from staff priority. It rises one level every 24 hours, up to 5. A request closes only when every item need is met. New requests appear automatically.</p>
     </div>
   );
 }
