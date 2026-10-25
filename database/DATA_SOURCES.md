@@ -10,6 +10,12 @@ The larger deterministic CSV fixtures and import instructions are in
 the source/fabricated distinctions below and include synthetic scale data for
 isolated testing.
 
+For an auditable field-by-field crosswalk from each seed/source batch to the
+destination schema, see
+[`database/source-to-table-mapping.md`](source-to-table-mapping.md). It also
+records transformations, dates/units/coordinate assumptions, terms evidence,
+and gaps that the current schema cannot represent.
+
 Three honesty tiers are used throughout `seed.sql`, tagged inline as comments:
 
 - **REAL** — the value is taken directly from a cited source, unchanged.
@@ -28,15 +34,15 @@ Three honesty tiers are used throughout `seed.sql`, tagged inline as comments:
 **Source:** *EnviStats India 2020*, Central Statistics Office (CSO), Ministry of
 Statistics & Programme Implementation, Govt. of India — Table 1.9, "India's major
 natural disasters since 1990."
-Mirror used: https://iasri.icar.gov.in/agridata/23data/chapter1/db2020tb1_9.pdf
+Source copy used: https://iasri.res.in/agridata/23data/chapter1/db2020tb1_9.pdf
 
 All 13 rows (type, region, and — where the table gives it — death toll) come
 directly from this table. Two fields are **not** in the source table and are
 therefore our own additions, clearly flagged:
 
 - `severity` (1–5) — our own categorisation, roughly bucketed from the reported
-  death toll where available (FABRICATED / editorial judgment, not sourced).
-- Exact `start_date` for events where the CSO table only gives a year — for six
+  death toll where available (DERIVED/editorial judgment, not source-reported).
+- Exact `start_date` for events where the CSO table only gives a year — for ten
   events (1991 Uttarkashi EQ, 1996 AP Cyclone, 1999 Odisha Cyclone, 2001 Gujarat
   EQ, 2004 tsunami, 2008 Kosi floods, 2013 Uttarakhand floods, 2013 Phailin, 2014
   Hudhud, 2018 Kerala floods) we used the well-documented public landfall/impact
@@ -83,14 +89,16 @@ Source page: https://lsgkerala.gov.in/en/flood-relief/camps-20august2018
 
 **DERIVED simplification, disclosed:** none of these sources report a shelter's
 *designed maximum* capacity — only how many people were actually there at the
-time. So for every real row, `capacity_occupied` = the reported headcount
-(REAL), and `capacity_total` = that headcount plus a small ~5–8% buffer we
-added ourselves (FABRICATED). We initially set `capacity_total = capacity_occupied`
-(i.e. "full to the reported number"), but actually running `find_nearest_shelters()`
-against that data showed every real shelter except one dropping out of results
-with zero available space — so the buffer isn't cosmetic, it's what keeps the
-check-in/concurrency demos runnable against the real rows at all. This is a
-modeling choice, not a source figure.
+time. For Kalady, Ernakulam, Idukki, and Wayanad, `capacity_occupied` is the
+reported headcount (REAL) and `capacity_total` is that headcount plus a small
+modeled buffer (not source data). Alappuzha is different: the source reports
+125,000 people in camps, stored as `capacity_total`; `capacity_occupied` is
+backed off to 118,000 to leave headroom and is not source-reported. We initially
+set `capacity_total = capacity_occupied` (i.e. "full to the reported number"),
+but actually running `find_nearest_shelters()` against that data showed the
+rows dropping out of results with zero available space — the modeled headroom
+keeps the check-in/concurrency demos runnable. This is a modeling choice, not a
+source figure.
 
 **FABRICATED:** exact street addresses (we use the real town/district name and an
 approximate town-centre lat/long — not the real camp's GPS coordinates, which
