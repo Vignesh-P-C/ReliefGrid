@@ -37,14 +37,15 @@ router.get('/nearest', async (req, res) => {
 router.get('/ranked', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT shelter_id, name, event_id,
-        ROUND(100.0 * capacity_occupied / NULLIF(capacity_total,0), 1) AS occupancy_pct,
+      SELECT s.shelter_id, s.name, s.event_id, e.name AS event_name,
+        ROUND(100.0 * s.capacity_occupied / NULLIF(s.capacity_total,0), 1) AS occupancy_pct,
         RANK() OVER (
-          PARTITION BY event_id
-          ORDER BY capacity_occupied::float / NULLIF(capacity_total,0) DESC
+          PARTITION BY s.event_id
+          ORDER BY s.capacity_occupied::float / NULLIF(s.capacity_total,0) DESC
         ) AS occupancy_rank
-      FROM Shelters
-      ORDER BY event_id, occupancy_rank
+      FROM Shelters s
+      LEFT JOIN Disaster_Events e ON e.event_id = s.event_id
+      ORDER BY s.event_id, occupancy_rank
     `);
     res.json(result.rows);
   } catch (err) {

@@ -52,7 +52,7 @@ when they are picked up.
 
 ### 1. Urgency is self-declared with no verification
 
-- [ ] Resolved — tracked in [#48](https://github.com/Vignesh-P-C/ReliefGrid/issues/48)
+- [x] Resolved — tracked in [#48](https://github.com/Vignesh-P-C/ReliefGrid/issues/48)
 
 **Severity:** Blocker · **Area:** Public portal / triage · **Layer:** DB + Frontend
 
@@ -62,7 +62,7 @@ when they are picked up.
 
 ### 2. Waiting time never promotes anyone
 
-- [ ] Resolved — tracked in [#49](https://github.com/Vignesh-P-C/ReliefGrid/issues/49)
+- [x] Resolved — tracked in [#49](https://github.com/Vignesh-P-C/ReliefGrid/issues/49)
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
@@ -92,7 +92,7 @@ when they are picked up.
 
 ### 5. The queue hides the request type
 
-- [ ] Resolved — tracked in [#50](https://github.com/Vignesh-P-C/ReliefGrid/issues/50)
+- [x] Resolved — tracked in [#50](https://github.com/Vignesh-P-C/ReliefGrid/issues/50)
 
 **Severity:** Blocker · **Area:** Triage · **Layer:** DB
 
@@ -320,7 +320,7 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 26. Coordinators cannot contact requesters
 
-- [ ] Resolved — tracked in [#51](https://github.com/Vignesh-P-C/ReliefGrid/issues/51)
+- [x] Resolved — tracked in [#51](https://github.com/Vignesh-P-C/ReliefGrid/issues/51)
 
 **Severity:** Blocker · **Area:** Dashboard · **Layer:** DB
 
@@ -330,7 +330,7 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 27. Requests carry no location in the dashboard
 
-- [ ] Resolved — tracked in [#52](https://github.com/Vignesh-P-C/ReliefGrid/issues/52)
+- [x] Resolved — tracked in [#52](https://github.com/Vignesh-P-C/ReliefGrid/issues/52)
 
 **Severity:** Gap · **Area:** Dashboard · **Layer:** DB + API + Frontend
 
@@ -340,7 +340,7 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 28. Disaster events are rendered as bare numbers
 
-- [ ] Resolved — tracked in [#53](https://github.com/Vignesh-P-C/ReliefGrid/issues/53)
+- [x] Resolved — tracked in [#53](https://github.com/Vignesh-P-C/ReliefGrid/issues/53)
 
 **Severity:** Gap · **Area:** Dashboard · **Layer:** API + Frontend
 
@@ -370,7 +370,7 @@ The dashboard shows state but withholds nearly everything needed to act on it.
 
 ### 31. The "Operational view" indicator is decorative
 
-- [ ] Resolved — tracked in [#54](https://github.com/Vignesh-P-C/ReliefGrid/issues/54)
+- [x] Resolved — tracked in [#54](https://github.com/Vignesh-P-C/ReliefGrid/issues/54)
 
 **Severity:** Blocker · **Area:** Dashboard · **Layer:** Frontend
 
