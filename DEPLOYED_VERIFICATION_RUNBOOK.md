@@ -342,9 +342,9 @@ SELECT
 
 Expected on a database that has not run the Phase 3 migration: `checkin_return_type = boolean`, `checkout_exists = false`, `status_check_exists = false`, `view_has_is_active = false`.
 
-### Constraint-violation check (run before the migration)
+### Constraint-violation check (informational — the migration now normalises this itself)
 
-The Phase 3 migration adds `CHECK (status IN ('active', 'inactive'))` to `Shelters.status` **without** normalising existing rows first — unlike Phase 2's status constraint, which resets unexpected values to `'pending'` before adding its CHECK. If any row already violates it, `ALTER TABLE ... ADD CONSTRAINT` fails and the migration stops partway through (the `DO $$` block runs inside an implicit transaction per statement, so the constraint simply will not exist; nothing is left half-applied, but you cannot proceed until this is clean).
+The Phase 3 migration adds `CHECK (status IN ('active', 'inactive'))` to `Shelters.status`. Like Phase 2's status constraint, it now **normalises unexpected values to `'active'` before adding the CHECK**, inside the same guarded `DO $$` block, so a stray value from the old unconstrained column cannot fail the deploy. Run this query anyway, before migrating, so you know in advance whether any row will be silently changed to `'active'`:
 
 ```sql
 SELECT shelter_id, name, status
@@ -352,13 +352,13 @@ FROM Shelters
 WHERE status IS NULL OR status NOT IN ('active', 'inactive');
 ```
 
-Expected: 0 rows. The project's seed data only ever sets `status = 'active'`, so on the seeded demo database this will be empty. If it is not empty, decide the correct value for each row (`active` or `inactive`) and `UPDATE` them manually before running the migration — there is no automatic normalisation step to rely on here.
+Expected: 0 rows. The project's seed data only ever sets `status = 'active'`, so on the seeded demo database this will be empty. If it is not empty and `'active'` is the wrong default for one of those rows (for example, it should really be `'inactive'`), fix it with an explicit `UPDATE` **before** running the migration — once the migration runs, every row this query would have matched is already `'active'`.
 
 ## 19. Step 11 — apply the Phase 3 migration
 
 | # | File | What it changes | Needed? |
 | --- | --- | --- | --- |
-| 4 | `database/migrations/20261025_phase3_capacity_truth.sql` | Adds the `shelters_status_valid` CHECK; replaces `checkin_to_shelter(int,int)` (drops it first, since its return type changes from `BOOLEAN` to `VARCHAR`) so it returns `'ok'` / `'not_found'` / `'inactive'` / `'full'` instead of a boolean; adds `checkout_from_shelter(int,int)` returning `'ok'` / `'not_found'` / `'exceeds_occupancy'`; rebuilds `Shelter_Live_Status` with `event_id`, `event_name`, and `is_active` appended after the original six columns. | **Yes** if `checkin_return_type` was `boolean` in section 18. |
+| 4 | `database/migrations/20261025_phase3_capacity_truth.sql` | Normalises any `Shelters.status` value outside `active`/`inactive` to `'active'`, then adds the `shelters_status_valid` CHECK; replaces `checkin_to_shelter(int,int)` (drops it first, since its return type changes from `BOOLEAN` to `VARCHAR`) so it returns `'ok'` / `'not_found'` / `'inactive'` / `'full'` / `'invalid_quantity'` instead of a boolean; adds `checkout_from_shelter(int,int)` returning `'ok'` / `'not_found'` / `'exceeds_occupancy'` / `'invalid_quantity'`; rebuilds `Shelter_Live_Status` with `event_id`, `event_name`, and `is_active` appended after the original six columns. | **Yes** if `checkin_return_type` was `boolean` in section 18. |
 
 This file is **not listed** in `database/migrations/README.md` (that file only documents migrations 1–3, the Phase A/Phase 2 set) — a human should add it there as migration 4; this addendum does not edit that file.
 
@@ -368,7 +368,8 @@ This file is **not listed** in `database/migrations/README.md` (that file only d
 - The old `checkin_to_shelter(int,int)` **BOOLEAN**-returning function is dropped and replaced. See section 21 for why the deploy order matters here specifically.
 - No trigger changes. `checkout_from_shelter()` reuses the existing `trg_log_capacity` trigger (`AFTER UPDATE OF capacity_occupied ON Shelters`) because it updates the same column the same way check-in does — every successful check-out writes a `Shelter_Capacity_Log` row automatically, with no new trigger needed.
 - `mv_daily_capacity_trend` is untouched. Because check-outs now also log to `Shelter_Capacity_Log`, the daily trend will show occupancy *decreasing* on days with check-outs once you `REFRESH MATERIALIZED VIEW mv_daily_capacity_trend` — this is new real data, not a bug in the view.
-- No data backfill and no normalisation beyond what section 18's constraint check above asks you to handle manually.
+- No data backfill. The one normalisation this migration performs is the `Shelters.status` reset described above — nothing else is touched.
+- Both functions now reject `p_num_people <= 0` with `'invalid_quantity'` before taking any lock. The deployed API already validated this client-side, so this only matters for anyone calling the functions directly (test scripts, `psql`, a future caller) — it is not reachable through the current routes.
 
 ## 20. Step 12 — verify the Phase 3 schema landed
 
@@ -437,10 +438,13 @@ Sign in to the Coordinator Dashboard as staff and open **Live shelter board**. U
 | C7 | #65 | Any signed-in role | Use the event filter dropdown above the table (only shown when more than one event is present). | Selecting an event narrows the table and the summary cards to shelters in that event only; an inactive shelter in the selected event is still excluded from the totals as in C6. |
 | C8 | #65 | Any signed-in role | Open **Occupancy ranking**. | A shelter you set **Inactive** in C6 does not appear in any event's ranked list at all. |
 | C9 | #66 | Admin or ShelterCoordinator | Click **Add shelter**, fill name/latitude/longitude/capacity, submit. | `201`; the form closes and the new shelter appears in the table immediately, no manual reload. |
-| C10 | #66 | Admin or ShelterCoordinator | Click **Edit** on a shelter, change **Status** to **Inactive / closed**, save. | `200`; the row immediately shows the **Inactive** badge and loses its check-in/out controls, replaced with "This shelter is closed and cannot accept check-ins." |
+| C10 | #66 | Admin or ShelterCoordinator | Click **Edit** on a shelter, change **Status** to **Inactive / closed**, save — including one that still has people checked in. | `200`; closing is allowed regardless of current occupancy. The row shows the **Inactive** badge and loses its **Check in** control (replaced with "Closed — no new check-ins."), but keeps **Check out** — a closed shelter can still be occupied and must stay emptyable. |
 | C11 | #66 | Admin or ShelterCoordinator | On a shelter with people checked in, try to **Edit** its capacity down to below the current occupancy. | `409`, message `"capacity_total cannot be reduced below the current occupancy"`; nothing is changed. |
 | C12 | #66 | Volunteer | Attempt **Add shelter** or **Edit** (via the API, since the UI hides these controls for this role). | `403`. |
 | C13 | regression | Admin or ShelterCoordinator | Record a priority review on **Priority queue** (Phase A, A1) or complete a Food need on **Allocation** (Phase 2, P4). | Behaves exactly as sections 10 and 11 describe — unaffected by the Phase 3 deploy, since Phase 3 touches no shared code path with triage or allocation. |
+| C14 | #62, #66 | Staff | On the shelter closed in C10, use **Check out** to remove everyone still inside it. | `200` each time; occupancy reaches `0`. `checkout_from_shelter()` never checks `status`, so this works on an inactive shelter exactly as it does on an active one — confirm check-in on the same shelter still returns `409` throughout. |
+| C15 | #25 | Staff (API) | `POST /api/shelters/abc/checkin`, `POST /api/shelters/abc/checkout`, `GET /api/shelters/abc`, `PATCH /api/shelters/abc` — a non-numeric ID in place of a real one. | `400` on all four, with a message naming the `id`/`shelter id` problem — **not** `500`. |
+| C16 | #25 | Staff (API) | `POST /api/shelters` with `status: ""`, then `PATCH /api/shelters/:id` with `status: ""`. | `400` on both, `"status must be 'active' or 'inactive'"` — an empty string is rejected, not silently treated as `'active'`. |
 
 ## 23. Step 15 — data-changing helpers and cleanup (Phase 3)
 
@@ -496,7 +500,7 @@ A separate sheet from section 15's, so Phase A/2 and Phase 3 results are not ove
 | Migration 4 applied (`20261025_phase3_capacity_truth.sql`) | |
 | Render deploy commit | |
 | Coordinator Dashboard Vercel commit | |
-| Phase 3 results (C1–C13) | |
+| Phase 3 results (C1–C16) | |
 | Synthetic/test shelter names or IDs created | |
 | Cleanup performed | |
 | Errors observed (browser console, Network, Render logs) | |

@@ -40,7 +40,8 @@ CREATE TABLE Shelters (
   capacity_occupied INT NOT NULL DEFAULT 0 CHECK (capacity_occupied >= 0),
   contact_number VARCHAR(15),
   coordinator_id INT REFERENCES Users(user_id),
-  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  status VARCHAR(20) DEFAULT 'active'
+    CONSTRAINT shelters_status_valid CHECK (status IN ('active', 'inactive')),
   CHECK (capacity_occupied <= capacity_total)
 );
 
@@ -262,6 +263,10 @@ CREATE OR REPLACE FUNCTION checkin_to_shelter(p_shelter_id INT, p_num_people INT
 DECLARE
   occ INT; tot INT; shelter_status VARCHAR;
 BEGIN
+  IF p_num_people IS NULL OR p_num_people <= 0 THEN
+    RETURN 'invalid_quantity';
+  END IF;
+
   SELECT capacity_occupied, capacity_total, status INTO occ, tot, shelter_status
   FROM Shelters WHERE shelter_id = p_shelter_id
   FOR UPDATE;
@@ -289,6 +294,10 @@ CREATE OR REPLACE FUNCTION checkout_from_shelter(p_shelter_id INT, p_num_people 
 DECLARE
   occ INT;
 BEGIN
+  IF p_num_people IS NULL OR p_num_people <= 0 THEN
+    RETURN 'invalid_quantity';
+  END IF;
+
   SELECT capacity_occupied INTO occ
   FROM Shelters WHERE shelter_id = p_shelter_id
   FOR UPDATE;

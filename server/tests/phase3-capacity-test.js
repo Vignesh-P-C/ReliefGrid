@@ -9,7 +9,7 @@
  *   1. docker run --rm -d -e POSTGRES_PASSWORD=test -e POSTGRES_DB=reliefgrid_test -p 5433:5432 postgres:16
  *   2. TEST_DATABASE_URL=postgresql://postgres:test@localhost:5433/reliefgrid_test node tests/setup-test-db.js
  *   3. DATABASE_URL=postgresql://postgres:test@localhost:5433/reliefgrid_test JWT_SECRET=test-secret PORT=5057 node index.js   (separate terminal)
- *   4. API_URL=http://localhost:5057 TEST_DATABASE_URL=postgresql://postgres:test@localhost:5433/reliefgrid_test node tests/phase3-capacity-test.js
+ *   4. API_URL=http://localhost:5057 TEST_DATABASE_URL=postgresql://postgres:test@localhost:5433/reliefgrid_test npm run test:phase3
  */
 
 const { Client } = require('pg');
@@ -43,7 +43,8 @@ async function loadFixtures() {
     `INSERT INTO Shelters (shelter_id, event_id, name, address, latitude, longitude, capacity_total, capacity_occupied, contact_number, status) VALUES
        (1, 1, 'Active Shelter',   '1 Test Rd', 10.0, 76.0, 5, 3, '1111111111', 'active'),
        (2, 1, 'Inactive Shelter', '2 Test Rd', 10.1, 76.1, 5, 2, '2222222222', 'inactive'),
-       (3, 1, 'Full Shelter',     '3 Test Rd', 10.2, 76.2, 2, 2, '3333333333', 'active')`
+       (3, 1, 'Full Shelter',     '3 Test Rd', 10.2, 76.2, 2, 2, '3333333333', 'active'),
+       (4, 1, 'Race Shelter',     '4 Test Rd', 10.3, 76.3, 3, 2, '4444444444', 'active')`
   );
 
   const adminHash = await bcrypt.hash('AdminPass123', 10);
@@ -203,6 +204,89 @@ async function main() {
 
     const unknownPatch = await req('PATCH', '/api/shelters/9999', adminToken, { status: 'inactive' });
     check('editing an unknown shelter returns 404', unknownPatch.status === 404, unknownPatch.status);
+  }
+
+  console.log('\n-- A closed shelter can still be emptied --');
+  {
+    // newShelterId was closed (status -> inactive) in the block above while it
+    // still had 4 people checked in. Closing it must not freeze that occupancy.
+    const checkinWhileClosed = await req('POST', `/api/shelters/${newShelterId}/checkin`, volunteerToken, { num_people: 1 });
+    check('check-in is still blocked once closed', checkinWhileClosed.status === 409, checkinWhileClosed.status);
+
+    const checkoutWhileClosed = await req('POST', `/api/shelters/${newShelterId}/checkout`, volunteerToken, { num_people: 4 });
+    check('check-out still works on a closed shelter', checkoutWhileClosed.status === 200 && checkoutWhileClosed.data?.success === true, checkoutWhileClosed.status);
+
+    const emptied = (await req('GET', '/api/shelters')).data.find((s) => s.shelter_id === newShelterId);
+    check('closed shelter is now fully emptied', emptied?.capacity_occupied === 0, emptied);
+  }
+
+  console.log('\n-- Non-numeric shelter IDs are rejected, not 500 --');
+  {
+    const checkin = await req('POST', '/api/shelters/abc/checkin', volunteerToken, { num_people: 1 });
+    check('check-in with a non-numeric id returns 400', checkin.status === 400, checkin.status);
+
+    const checkout = await req('POST', '/api/shelters/abc/checkout', volunteerToken, { num_people: 1 });
+    check('check-out with a non-numeric id returns 400', checkout.status === 400, checkout.status);
+
+    const get = await req('GET', '/api/shelters/abc', adminToken);
+    check('GET with a non-numeric id returns 400', get.status === 400, get.status);
+
+    const patch = await req('PATCH', '/api/shelters/abc', adminToken, { status: 'inactive' });
+    check('PATCH with a non-numeric id returns 400', patch.status === 400, patch.status);
+  }
+
+  console.log('\n-- Audit #25: status validation rejects an empty string, not a silent default --');
+  {
+    const created = await req('POST', '/api/shelters', adminToken, {
+      name: 'Empty Status Shelter', latitude: 12, longitude: 78, capacity_total: 5, status: '',
+    });
+    check('creating a shelter with status: "" returns 400', created.status === 400, created.status);
+
+    const patched = await req('PATCH', `/api/shelters/1`, adminToken, { status: '' });
+    check('editing a shelter with status: "" returns 400', patched.status === 400, patched.status);
+  }
+
+  console.log('\n-- The SQL functions reject a non-positive num_people even if called directly --');
+  {
+    const client = new Client({ connectionString: TEST_DATABASE_URL, ssl: false });
+    await client.connect();
+
+    const before = (await client.query('SELECT capacity_occupied FROM Shelters WHERE shelter_id = 1')).rows[0];
+    const zero = (await client.query('SELECT checkin_to_shelter(1, 0) AS outcome')).rows[0].outcome;
+    check('checkin_to_shelter(id, 0) is rejected', zero === 'invalid_quantity', zero);
+    const negativeCheckin = (await client.query('SELECT checkin_to_shelter(1, -5) AS outcome')).rows[0].outcome;
+    check('checkin_to_shelter(id, -5) is rejected (would otherwise decrement on "check-in")', negativeCheckin === 'invalid_quantity', negativeCheckin);
+    const negativeCheckout = (await client.query('SELECT checkout_from_shelter(1, -5) AS outcome')).rows[0].outcome;
+    check('checkout_from_shelter(id, -5) is rejected (would otherwise increment on "check-out")', negativeCheckout === 'invalid_quantity', negativeCheckout);
+
+    const after = (await client.query('SELECT capacity_occupied FROM Shelters WHERE shelter_id = 1')).rows[0];
+    check('occupancy is unchanged by all three rejected calls', after.capacity_occupied === before.capacity_occupied, { before, after });
+
+    await client.end();
+  }
+
+  console.log('\n-- Concurrent check-in and check-out on the same shelter serialize safely --');
+  {
+    // Shelter 4 starts at 2/3. A concurrent checkin(2) and checkout(1) race:
+    // whichever the row lock admits first decides the outcome, but both
+    // orderings are internally consistent (no lost update, no overbooking):
+    //   checkout then checkin: 2-1=1, then 1+2=3 (<=3, succeeds)   -> final 3, both succeed
+    //   checkin then checkout: 2+2=4 (>3, rejected), then 2-1=1    -> final 1, checkin rejected
+    const [checkinResult, checkoutResult] = await Promise.all([
+      req('POST', '/api/shelters/4/checkin', volunteerToken, { num_people: 2 }),
+      req('POST', '/api/shelters/4/checkout', volunteerToken, { num_people: 1 }),
+    ]);
+    check('check-out never fails in this race (never exceeds occupancy)', checkoutResult.status === 200, checkoutResult.status);
+
+    const final = (await req('GET', '/api/shelters')).data.find((s) => s.shelter_id === 4);
+    const consistentWithSerialOrder = (checkinResult.status === 200 && final.capacity_occupied === 3)
+      || (checkinResult.status === 409 && final.capacity_occupied === 1);
+    check(
+      'final occupancy matches one of the two valid serial orderings, not a corrupted value',
+      consistentWithSerialOrder,
+      { checkinStatus: checkinResult.status, finalOccupied: final?.capacity_occupied }
+    );
+    check('occupancy never exceeded capacity_total under concurrent load', final.capacity_occupied <= 3, final);
   }
 
   console.log(`\nSummary: ${passed} passed, ${failed} failed.`);

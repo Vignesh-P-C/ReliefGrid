@@ -11,6 +11,13 @@ BEGIN
     SELECT 1 FROM pg_constraint
     WHERE conname = 'shelters_status_valid' AND conrelid = 'shelters'::regclass
   ) THEN
+    -- The column had no constraint before this migration, so an existing row
+    -- could hold something other than 'active'/'inactive'. Normalise first,
+    -- the same way the Phase 2 migration normalises Aid_Requests.status
+    -- before adding its own CHECK, so the ALTER below cannot fail a deploy.
+    UPDATE Shelters SET status = 'active'
+    WHERE status IS NULL OR status NOT IN ('active', 'inactive');
+
     ALTER TABLE Shelters
       ADD CONSTRAINT shelters_status_valid CHECK (status IN ('active', 'inactive'));
   END IF;
@@ -26,6 +33,10 @@ CREATE FUNCTION checkin_to_shelter(p_shelter_id INT, p_num_people INT) RETURNS V
 DECLARE
   occ INT; tot INT; shelter_status VARCHAR;
 BEGIN
+  IF p_num_people IS NULL OR p_num_people <= 0 THEN
+    RETURN 'invalid_quantity';
+  END IF;
+
   SELECT capacity_occupied, capacity_total, status INTO occ, tot, shelter_status
   FROM Shelters WHERE shelter_id = p_shelter_id
   FOR UPDATE;
@@ -54,6 +65,10 @@ CREATE OR REPLACE FUNCTION checkout_from_shelter(p_shelter_id INT, p_num_people 
 DECLARE
   occ INT;
 BEGIN
+  IF p_num_people IS NULL OR p_num_people <= 0 THEN
+    RETURN 'invalid_quantity';
+  END IF;
+
   SELECT capacity_occupied INTO occ
   FROM Shelters WHERE shelter_id = p_shelter_id
   FOR UPDATE;

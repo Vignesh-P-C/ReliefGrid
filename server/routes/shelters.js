@@ -68,6 +68,7 @@ const CAPACITY_RESULT_RESPONSES = {
   inactive: { status: 409, message: 'This shelter is closed/inactive and cannot accept check-ins' },
   full: { status: 409, message: 'Not enough space in this shelter' },
   exceeds_occupancy: { status: 409, message: 'Cannot check out more people than are currently checked in' },
+  invalid_quantity: { status: 400, message: 'num_people must be a positive whole number' },
 };
 
 // POST /api/shelters/:id/checkin — wraps checkin_to_shelter(), the concurrency-safe function
@@ -75,6 +76,9 @@ router.post('/:id/checkin', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { num_people } = req.body;
 
+  if (!isPositiveInteger(id)) {
+    return res.status(400).json({ message: 'shelter id must be a positive whole number' });
+  }
   if (!isPositiveInteger(num_people)) {
     return res.status(400).json({ message: 'num_people must be a positive whole number' });
   }
@@ -99,6 +103,9 @@ router.post('/:id/checkout', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { num_people } = req.body;
 
+  if (!isPositiveInteger(id)) {
+    return res.status(400).json({ message: 'shelter id must be a positive whole number' });
+  }
   if (!isPositiveInteger(num_people)) {
     return res.status(400).json({ message: 'num_people must be a positive whole number' });
   }
@@ -123,13 +130,18 @@ const isValidCoordinate = (value, min, max) => typeof value !== 'undefined' && v
   && Number.isFinite(Number(value)) && Number(value) >= min && Number(value) <= max;
 const isNonNegativeInteger = (value) => (typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))
   && Number.isInteger(Number(value)) && Number(value) >= 0;
+const isValidStatus = (value) => value === undefined || value === null || value === 'active' || value === 'inactive';
+// Matches Shelters.name/contact_number column limits in schema.sql, so an
+// overlong value is a 400 here instead of a 22001 string-data-right-truncation 500.
+const NAME_MAX_LENGTH = 150;
+const CONTACT_NUMBER_MAX_LENGTH = 15;
 
 // POST /api/shelters — open a new shelter (Audit #25)
 router.post('/', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async (req, res) => {
   const { name, latitude, longitude, capacity_total, address, contact_number, coordinator_id, event_id, status } = req.body;
 
-  if (typeof name !== 'string' || name.trim() === '') {
-    return res.status(400).json({ message: 'name is required' });
+  if (typeof name !== 'string' || name.trim() === '' || name.trim().length > NAME_MAX_LENGTH) {
+    return res.status(400).json({ message: `name is required and must be ${NAME_MAX_LENGTH} characters or fewer` });
   }
   if (!isValidCoordinate(latitude, -90, 90) || !isValidCoordinate(longitude, -180, 180)) {
     return res.status(400).json({ message: 'latitude and longitude must be valid coordinates' });
@@ -137,8 +149,11 @@ router.post('/', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async 
   if (!isNonNegativeInteger(capacity_total)) {
     return res.status(400).json({ message: 'capacity_total must be a non-negative whole number' });
   }
-  if (status && status !== 'active' && status !== 'inactive') {
+  if (!isValidStatus(status)) {
     return res.status(400).json({ message: "status must be 'active' or 'inactive'" });
+  }
+  if (typeof contact_number === 'string' && contact_number.trim().length > CONTACT_NUMBER_MAX_LENGTH) {
+    return res.status(400).json({ message: `contact_number must be ${CONTACT_NUMBER_MAX_LENGTH} characters or fewer` });
   }
 
   try {
@@ -146,7 +161,7 @@ router.post('/', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async 
       `INSERT INTO Shelters(name, latitude, longitude, capacity_total, address, contact_number, coordinator_id, event_id, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'active'))
        RETURNING *`,
-      [name.trim(), latitude, longitude, Number(capacity_total), address || null, contact_number || null, coordinator_id || null, event_id || null, status || null]
+      [name.trim(), latitude, longitude, Number(capacity_total), address || null, contact_number ? contact_number.trim() : null, coordinator_id || null, event_id || null, status || null]
     );
     req.app.get('io').emit('shelter-updated', { shelterId: result.rows[0].shelter_id });
     res.status(201).json(result.rows[0]);
@@ -172,7 +187,7 @@ router.patch('/:id', requireAuth, requireRole('Admin', 'ShelterCoordinator'), as
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ message: 'No updatable fields were provided' });
   }
-  if ('status' in updates && updates.status !== 'active' && updates.status !== 'inactive') {
+  if ('status' in updates && !isValidStatus(updates.status)) {
     return res.status(400).json({ message: "status must be 'active' or 'inactive'" });
   }
   if ('capacity_total' in updates && !isNonNegativeInteger(updates.capacity_total)) {
@@ -183,6 +198,21 @@ router.patch('/:id', requireAuth, requireRole('Admin', 'ShelterCoordinator'), as
   }
   if ('longitude' in updates && !isValidCoordinate(updates.longitude, -180, 180)) {
     return res.status(400).json({ message: 'longitude must be a valid coordinate' });
+  }
+  if ('name' in updates) {
+    if (typeof updates.name !== 'string' || updates.name.trim() === '' || updates.name.trim().length > NAME_MAX_LENGTH) {
+      return res.status(400).json({ message: `name must be a non-empty string of ${NAME_MAX_LENGTH} characters or fewer` });
+    }
+    updates.name = updates.name.trim();
+  }
+  if ('contact_number' in updates && updates.contact_number !== null) {
+    if (typeof updates.contact_number !== 'string' || updates.contact_number.trim().length > CONTACT_NUMBER_MAX_LENGTH) {
+      return res.status(400).json({ message: `contact_number must be ${CONTACT_NUMBER_MAX_LENGTH} characters or fewer` });
+    }
+    updates.contact_number = updates.contact_number.trim();
+  }
+  if (!isPositiveInteger(id)) {
+    return res.status(400).json({ message: 'shelter id must be a positive whole number' });
   }
 
   const client = await pool.connect();
@@ -224,6 +254,9 @@ router.patch('/:id', requireAuth, requireRole('Admin', 'ShelterCoordinator'), as
 // GET /api/shelters/:id — full shelter record, used to prefill the edit form (Audit #25)
 router.get('/:id', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async (req, res) => {
   const { id } = req.params;
+  if (!isPositiveInteger(id)) {
+    return res.status(400).json({ message: 'shelter id must be a positive whole number' });
+  }
   try {
     const result = await pool.query('SELECT * FROM Shelters WHERE shelter_id = $1', [id]);
     if (result.rows.length === 0) {

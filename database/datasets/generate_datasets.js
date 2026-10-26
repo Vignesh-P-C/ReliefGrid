@@ -323,8 +323,8 @@ const provenance = [
 writeCsv(path.join(metadataDir, 'record_provenance.csv'), ['table_name', 'id_from', 'id_to', 'classification', 'source_url', 'notes'], provenance);
 
 const scenarios = [
-  { scenario_id: 'checkin_success', operation: 'checkin_to_shelter', target_id: 6, inputs: 'p_num_people=2', expected: 'TRUE; capacity_occupied becomes 2', reset: 'Reload the disposable fixture before each scenario; shelter 6 starts at 0/3.' },
-  { scenario_id: 'checkin_rejects_over_capacity', operation: 'checkin_to_shelter', target_id: 6, inputs: 'p_num_people=4', expected: 'FALSE; occupancy remains 0', reset: 'Reload the disposable fixture before each scenario.' },
+  { scenario_id: 'checkin_success', operation: 'checkin_to_shelter', target_id: 6, inputs: 'p_num_people=2', expected: "'ok'; capacity_occupied becomes 2", reset: 'Reload the disposable fixture before each scenario; shelter 6 starts at 0/3.' },
+  { scenario_id: 'checkin_rejects_over_capacity', operation: 'checkin_to_shelter', target_id: 6, inputs: 'p_num_people=4', expected: "'full'; occupancy remains 0", reset: 'Reload the disposable fixture before each scenario.' },
   { scenario_id: 'concurrent_checkin_demo', operation: 'server/tests/concurrency-test.js', target_id: 6, inputs: '5 concurrent requests x 2 people', expected: 'One succeeds and four receive 409; final occupancy is 2/3', reset: 'Run only on a freshly loaded disposable DB; set TEST_SHELTER_ID=6.' },
   { scenario_id: 'nearest_shelters', operation: 'find_nearest_shelters', target_id: 1, inputs: 'in_lat=10.1075;in_lon=76.3516;req_space=2;max_results=5', expected: 'Returns available active shelters ordered by distance', reset: 'No reset needed.' },
   { scenario_id: 'priority_queue', operation: 'get_priority_queue', target_id: '', inputs: 'No arguments', expected: `Returns ${8 + syntheticRequestCount - allocatedRequestCount} pending requests before mutations`, reset: 'Reload fixture after allocating or changing requests.' },

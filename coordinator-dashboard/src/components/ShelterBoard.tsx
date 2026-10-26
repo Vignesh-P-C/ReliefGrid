@@ -360,14 +360,16 @@ export default function ShelterBoard({ canManage }: ShelterBoardProps) {
                       {!shelter.is_active && <span className="status-pill is-inactive"><span className="status-dot" />Inactive</span>}
                     </td>
                     <td>
-                      {shelter.is_active ? (
-                        <div className="checkin-checkout-group">
+                      <div className="checkin-checkout-group">
+                        {shelter.is_active ? (
                           <ShelterCheckIn shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} />
-                          <ShelterCheckOut shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} />
-                        </div>
-                      ) : (
-                        <small className="table-muted">This shelter is closed and cannot accept check-ins.</small>
-                      )}
+                        ) : (
+                          <small className="table-muted">Closed — no new check-ins.</small>
+                        )}
+                        {/* Check-out stays available even when closed: a closed shelter can still hold
+                            people, and checkout_from_shelter() never checks status (Audit #19). */}
+                        <ShelterCheckOut shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} />
+                      </div>
                     </td>
                     {canManage && (
                       <td>
