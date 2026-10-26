@@ -5,6 +5,9 @@ export interface ShelterLiveStatus {
   capacity_occupied: number;
   occupancy_pct: number;
   status: 'full' | 'near-full' | 'available';
+  event_id: number | null;
+  event_name: string | null;
+  is_active: boolean;
 }
 
 export interface RankedShelter {

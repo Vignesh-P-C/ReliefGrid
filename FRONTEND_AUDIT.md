@@ -244,7 +244,7 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 19. There is no checkout
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Blocker · **Area:** Capacity · **Layer:** DB + API + Frontend
 
@@ -254,7 +254,7 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 20. Check-in ignores whether the shelter is open
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Broken · **Area:** Capacity · **Layer:** DB
 
@@ -264,7 +264,7 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 21. An unknown shelter ID returns success
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Broken · **Area:** Capacity · **Layer:** DB
 
@@ -274,7 +274,7 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 22. The board mixes disasters and counts closed shelters as available
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Blocker · **Area:** Capacity · **Layer:** DB
 
@@ -304,7 +304,7 @@ Occupancy is the number the public portal and the board both depend on, and it i
 
 ### 25. Shelters cannot be created, closed, resized, or edited
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Gap · **Area:** Capacity · **Layer:** API + DB + Frontend
 
