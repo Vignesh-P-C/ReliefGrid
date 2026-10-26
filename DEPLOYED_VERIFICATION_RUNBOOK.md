@@ -299,3 +299,170 @@ Keep this with the deployment notes; never include tokens, passwords or the data
 | Synthetic request IDs created | |
 | Cleanup performed | |
 | Errors observed (browser console, Network, Render logs) | |
+
+---
+
+# Phase 4 addendum — Portal trust
+
+This addendum covers Phase 4 only (issues #67–#74, FRONTEND_AUDIT.md items 34, 35, 36, 38, 39, 40, 41, 42). It assumes the Phase A and Phase 2 deploy described above is already live, and extends the same stack: **one Render API, two Vercel frontends, one Supabase database.** It does not repeat section 6's preflight — run that first if you have not already.
+
+## 16. Phase 4 — overview
+
+Phase 4 touches **the public-facing path only**: `find_nearest_shelters()`, `server/routes/aidRequests.js`'s `POST /` validation, `server/routes/auth.js`'s registration validation, a new `server/routes/events.js`, and the **Public Portal**'s `RequestForm.tsx` and `FindShelter.tsx`. It does not touch `Shelters` DDL, `Aid_Requests` DDL, `Request_Needs`, `Allocations`, or anything under `coordinator-dashboard/`.
+
+| Needs a change? | Answer |
+| --- | --- |
+| Database migration | **Yes** — `database/migrations/20261025_phase4_portal_trust.sql`, which replaces only `find_nearest_shelters()`. |
+| Render (API) redeploy | **Yes** — new `GET /api/events`; `POST /api/aid-requests` and `POST /api/auth/register` / `POST /api/auth/register/staff` gain real field validation (previously presence-only). |
+| Vercel — Public Portal redeploy | **Yes** — `RequestForm.tsx` and `FindShelter.tsx` both change substantially. |
+| Vercel — Coordinator Dashboard redeploy | **No.** Phase 4's diff does not touch any file under `coordinator-dashboard/`. Redeploying it is harmless but unnecessary. |
+| New environment variable | **No.** Same as every earlier phase. |
+
+## 17. Phase 4 — prerequisites
+
+Confirm Phase A and Phase 2 via **section 6's preflight**, not repeated here. Phase 4 has **no functional dependency** on either — `find_nearest_shelters()`, the new validation in `aidRequests.js`/`auth.js`, and `events.js` all reference columns and tables that existed before Phase A or Phase 2 (`Shelters`, `Aid_Requests`, `Users`, `Disaster_Events`). You can apply this migration on a database that has only the original `schema.sql` baseline.
+
+**Data prerequisite — read this before testing the event selector (#74):** `GET /api/events` filters on `end_date IS NULL OR end_date >= CURRENT_DATE`. Checked against `database/seed.sql`: **none of the 15 seeded `Disaster_Events` rows set `end_date` at all** — every one, including the 1990 Andhra Pradesh & Tamil Nadu Cyclone and the other historical entries, has `end_date = NULL`. On the seeded demo database, `GET /api/events` will therefore return **all 15 events**, not just the current one or two. This is not a bug — the filter logic is reasonable given the schema — but it means T6 below will show a long dropdown with decades-old disasters in it, which is expected on this dataset, not a sign the filter is broken. If you want to demonstrate the "exactly one active event auto-selects" behaviour (Audit #42's nicer path), set `end_date` on all but one event first (see section 23's helper).
+
+## 18. Step 10 — Phase 4 preflight: what the database already has
+
+`pg_get_function_result` on a `RETURNS TABLE` function returns its full column list as one string — the simplest way to check column count without naming each one individually:
+
+```sql
+SELECT pg_get_function_result('find_nearest_shelters(numeric,numeric,int,int)'::regprocedure) AS nearest_return_type;
+```
+
+Expected on a database that has not run the Phase 4 migration:
+```
+TABLE(shelter_id integer, name character varying, distance_km numeric, available_space integer)
+```
+After the migration, this grows to nine columns (`latitude`, `longitude`, `address`, `contact_number`, `has_space` appended) — see section 20's exact expected string.
+
+**No constraint-violation check is needed for this migration.** Unlike Phase 3's `Shelters.status` constraint, this migration adds no `CHECK`, no `NOT NULL`, and no unique index — it only replaces a function body and widens its return columns. There is nothing existing data could violate.
+
+## 19. Step 11 — apply the Phase 4 migration
+
+| # | File | What it changes | Needed? |
+| --- | --- | --- | --- |
+| 5 | `database/migrations/20261025_phase4_portal_trust.sql` | Drops and recreates `find_nearest_shelters(numeric,numeric,int,int)` (drops it first, since its `RETURNS TABLE` column list grows from four columns to nine — `CREATE OR REPLACE FUNCTION` cannot do that). The `WHERE` clause no longer excludes shelters that are too small for `req_space`; instead the result is ordered `has_space DESC, distance_km ASC`, so a full shelter still appears (flagged `has_space = false`) instead of disappearing. | **Yes** if section 18's query returned the four-column form. |
+
+Like Phase 3's file, this is **not listed** in `database/migrations/README.md` (migrations 1–3 only) — a human should add it as migration 4 or 5 depending on whether Phase 3's migration is numbered first; this addendum does not edit that file.
+
+**Idempotency:** safe to re-run. `DROP FUNCTION IF EXISTS` precedes the `CREATE FUNCTION`, so re-running the file drops and recreates cleanly every time.
+
+**Side effects to expect, not bugs:**
+- `get_priority_queue()` (Phase A/2) also calls `find_nearest_shelters()`, selecting only `nearby.name`, `nearby.distance_km`, `nearby.available_space` by position from a `LEFT JOIN LATERAL`. Those three columns keep the same name, type, and position in the new nine-column result, so `get_priority_queue()` is **unaffected** and needs no change — verified by reading its definition in `schema.sql`, not assumed.
+- No table, trigger, or view changes. No data backfill.
+
+## 20. Step 12 — verify the Phase 4 schema landed
+
+```sql
+SELECT pg_get_function_result('find_nearest_shelters(numeric,numeric,int,int)'::regprocedure);
+```
+
+Expected after the migration:
+```
+TABLE(shelter_id integer, name character varying, distance_km numeric, available_space integer, latitude numeric, longitude numeric, address text, contact_number character varying, has_space boolean)
+```
+
+A quick functional check in the same editor — pick any two shelters, one with room and one full, near the same point, and confirm the full one is still returned:
+
+```sql
+SELECT shelter_id, name, has_space, available_space
+FROM find_nearest_shelters(10.0, 76.0, 1, 10)
+ORDER BY has_space DESC;
+-- Expected: shelters with has_space = true appear first; a full shelter
+-- (has_space = false) still appears instead of being silently dropped.
+```
+
+## 21. Step 13 — deploy order and hazards (Phase 4)
+
+**If the new Public Portal deploys before the migration runs** (unmigrated database still returns the old four-column shape):
+
+`FindShelter.tsx` reads `shelter.has_space`, `shelter.latitude`, `shelter.longitude`, `shelter.address`, and `shelter.contact_number` from every result. On the old shape these are simply absent from the JSON — `undefined` in the browser, not `null`. Verified directly:
+
+- `shelter.has_space ? shelter.available_space : 'Full'` — `undefined` is falsy, so **every shelter in the results list shows "Full · no space"**, even ones with plenty of room. This is a visible, misleading regression, not a crash.
+- The map-marker filter is `shelters.filter((shelter) => shelter.latitude !== null && shelter.longitude !== null)`. `undefined !== null` evaluates to **`true`** in JavaScript — confirmed directly — so shelters with no `latitude` field at all still pass this filter. The component then renders `<Marker position={[Number(shelter.latitude), Number(shelter.longitude)]}>`, and `Number(undefined)` is `NaN` — confirmed directly. A Leaflet marker constructed from `NaN` coordinates does not throw in this codebase's usage, but it does not appear at a meaningful position either; treat any marker that appears to sit at the map's corner or vanish on zoom as this symptom, not a new bug.
+- "Directions"/"Call" links (`shelter.contact_number`, `shelter.latitude`) simply don't render, since their guards (`{shelter.contact_number && ...}`) correctly treat `undefined` as absent — this part degrades gracefully.
+
+**If the migration runs before the new Public Portal deploys:** no hazard. The *old* `FindShelter.tsx` never reads the five new columns, so it keeps working exactly as before — it just doesn't gain the new behaviour until it redeploys. `GET /api/shelters/nearest` itself is unchanged code (`server/routes/shelters.js` is not part of this phase's diff); it blindly returns whatever `find_nearest_shelters()` currently returns, so there is nothing to break on the API side either direction.
+
+**`server/routes/aidRequests.js`, `auth.js`, and the new `events.js` have no migration dependency at all** — their validation and the events query only touch columns that existed before this phase. Deploying the API ahead of or behind the migration is safe for those three.
+
+**Safest order:** apply the migration first, confirm with section 20, then deploy the API, then the Public Portal.
+
+**Proof the new API build is live** (no mutation):
+
+```bash
+curl -i https://<render-host>/api/events
+```
+- Old API: Express's default 404 (`Cannot GET /api/events`) — the route did not exist.
+- New API: `200` with a JSON array (possibly all 15 seeded events — see section 17). A `200` here, with no token required, is the "it's live" signal.
+
+## 22. Step 14 — Phase 4 functional checks
+
+Run these against the deployed Public Portal unless marked "API". No staff account is needed — the public-facing routes are unauthenticated by design.
+
+| ID | Issue | Action | Expected |
+| --- | --- | --- | --- |
+| T1 | #67 | On **Request help**, try to type more than 100 characters into **Full name**, or more than 15 into **Phone number**. | The input simply stops accepting characters — `maxLength` matches the limits now (previously 120/30, which exceeded the database's `VARCHAR(100)`/`VARCHAR(15)`). |
+| T2 | #68 | API: `POST /api/aid-requests` with `num_people: 0`, or `urgency_level: 9`, or `request_type: "alien"`. | `400` with a specific message for each — `"num_people must be a positive whole number"`, `"urgency_level must be a whole number from 1 to 5"`, `"request_type must be one of: shelter, medical, food, rescue"`. None of these should ever produce a `500`. |
+| T3 | #68 | API: `POST /api/aid-requests` with `latitude` set but `longitude` omitted. | `400`, `"latitude and longitude must both be provided together"`. |
+| T4 | #68 | API: `POST /api/aid-requests` with `event_id: 999999` (or any ID that doesn't exist). | `400`, `"event_id does not reference an existing disaster event"` — **not** `500`. |
+| T5 | #69 | Submit a valid request on **Request help**. | The confirmation screen shows **"Your reference number is #&lt;id&gt;."** with the exact ID the API returned — not discarded. |
+| T6 | #74 | Open **Request help** and look at the event selector (only rendered when more than one event is returned). | Per section 17, expect **all 15 seeded events** listed on an unmodified demo database, most recent `start_date` first, including historical ones — this is correct behaviour given the data, not a bug. Selecting one and submitting sends that `event_id`; leaving "Not sure / general request" sends `event_id: null`. |
+| T7 | #38 | On **Find a shelter**, click **Pick on map** instead of **Use my location**. | A map appears centered on a default view; clicking anywhere on it immediately searches from that point — no GPS permission prompt at all. |
+| T8 | #38 | On **Find a shelter**, click **Browse all shelters**. | A full list of shelters appears with occupied/total counts, with no location requested and no distance shown. |
+| T9 | #39 | On **Find a shelter**, set **People in your household** to a number larger than any single shelter's free space, then search by location. | Results still return (not empty); each result reads **"Full · no space"** if `available_space` is less than the household size for that shelter, per the `has_space` flag — not simply omitted. |
+| T10 | #40 | Search by location near at least one shelter. | The map shows a pin for **every returned shelter**, not only the user's own position, each poppable to the shelter's name and space count. |
+| T11 | #41 | Search by location where the nearest shelter is full. | That shelter still appears in the results list (not hidden), labelled **"Full"**, with address and a **Call**/**Directions** link if `contact_number`/coordinates are present — not an empty state. |
+| T12 | regression | On the Coordinator Dashboard, open **Priority queue** or **Allocation** as staff. | Unaffected — Phase 4 touches no coordinator-dashboard code; behaves exactly as sections 10/11 describe. |
+
+## 23. Step 15 — data-changing helpers and cleanup (Phase 4)
+
+**Most Phase 4 checks are read-only** (T6–T11 only read data) or create a request that behaves like any other synthetic request from section 11.1 — use the same reserved phone prefix, and the same cleanup in section 12 removes them (it already deletes `Request_Needs` and `Allocations` rows for the prefix before deleting the request itself, which also covers the needs this phase's requests may carry).
+
+**Optional — to demonstrate the single-active-event auto-select path for T6** (section 17), temporarily close all but one event:
+
+```sql
+-- Preview first: confirm exactly which events you are about to close.
+SELECT event_id, name, start_date, end_date FROM Disaster_Events WHERE end_date IS NULL;
+```
+
+```sql
+-- Close every event except the one you want to demo (replace 14 with its event_id).
+UPDATE Disaster_Events
+SET end_date = CURRENT_DATE - INTERVAL '1 day'
+WHERE end_date IS NULL AND event_id <> 14;
+```
+
+```sql
+-- Restore afterwards — reopen exactly the rows this just closed.
+UPDATE Disaster_Events
+SET end_date = NULL
+WHERE end_date = CURRENT_DATE - INTERVAL '1 day' AND event_id <> 14;
+```
+
+Narrow the second statement's date comparison if you ran the close step on a different day than the restore.
+
+## 24. Phase 4 — rollback notes
+
+No change to section 13's conclusion. This migration is replace-only (one function body, recreated from scratch after an explicit drop) — restoring the pre-migration backup and redeploying the previous builds remains the only reliable rollback, and there is nothing additive to partially undo.
+
+**No Phase-4-specific hazard on rollback**, unlike Phase 3: rolling back only the Public Portal while leaving this migration applied is safe — the old frontend simply ignores the five new columns. Rolling back only the API is also safe for the same reason. The one direction that is not safe is already covered in section 21: deploying the **new** Public Portal before the migration runs.
+
+## 25. Phase 4 — record sheet
+
+A separate sheet from sections 15 and 25 (Phase 3), so results are not overwritten in the same cells.
+
+| Field | Value |
+| --- | --- |
+| Date and time (with timezone) | |
+| Migration applied (`20261025_phase4_portal_trust.sql`) | |
+| Render deploy commit | |
+| Public Portal Vercel commit | |
+| Phase 4 results (T1–T12) | |
+| Synthetic request IDs created (reserved phone prefix) | |
+| Disaster_Events temporarily closed for T6, if used | |
+| Cleanup performed | |
+| Errors observed (browser console, Network, Render logs) | |
