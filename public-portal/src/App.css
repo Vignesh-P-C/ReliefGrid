@@ -163,6 +163,23 @@
   .public-footer { font-size: 9px; }
 }
 
+/* ---- What do you need? (Phase 2) ---- */
+.need-picker { display: grid; gap: 9px; margin: 17px 0 0; padding: 13px 14px; border: 1px solid var(--line-soft); border-radius: 6px; background: #f8faf8; }
+.need-picker legend { padding: 0 5px; color: var(--ink); font-size: 11px; font-weight: 600; }
+.need-picker legend small { color: var(--quiet); font-size: 9px; font-weight: 400; letter-spacing: .5px; text-transform: uppercase; }
+.need-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.need-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.need-option.is-selected { border-color: var(--green); background: #eef6f0; }
+.need-option-label { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 11px; font-weight: 600; cursor: pointer; }
+.need-option-quantity { display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 9px; }
+.need-option-quantity input { width: 66px; min-height: 30px; padding: 0 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); font-size: 11px; }
+.need-option-quantity input:disabled { background: var(--surface-soft); color: var(--quiet); }
+.need-picker-note { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+
+@media (max-width: 720px) {
+  .need-options { grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

@@ -4,12 +4,14 @@ import ShelterBoard from './components/ShelterBoard';
 import RankedOccupancy from './components/RankedOccupancy';
 import ShortageBanner from './components/ShortageBanner';
 import PriorityQueue from './components/PriorityQueue';
+import AllocationWorkspace from './components/AllocationWorkspace';
+import AllocationHistory from './components/AllocationHistory';
 import VolunteerTaskTree from './components/VolunteerTaskTree';
 import { socket } from './lib/socket';
 import type { AuthUser } from './types';
 import './App.css';
 
-type Tab = 'board' | 'ranked' | 'queue' | 'tasks';
+type Tab = 'board' | 'ranked' | 'queue' | 'allocation' | 'tasks';
 type SocketStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 const sections: Record<Tab, { eyebrow: string; title: string; description: string }> = {
@@ -28,6 +30,11 @@ const sections: Record<Tab, { eyebrow: string; title: string; description: strin
     title: 'Priority queue',
     description: 'Review incoming requests in urgency order and coordinate a response.',
   },
+  allocation: {
+    eyebrow: 'Resource allocation',
+    title: 'Allocation workspace',
+    description: 'Match stock held at a shelter to the request that needs it, and see what has already been sent.',
+  },
   tasks: {
     eyebrow: 'Volunteer operations',
     title: 'Task dependency tree',
@@ -40,6 +47,7 @@ function App() {
   const [tab, setTab] = useState<Tab>('board');
   const [socketStatus, setSocketStatus] = useState<SocketStatus>('disconnected');
   const [queueRefresh, setQueueRefresh] = useState<{ lastSuccessfulAt: number | null; failed: boolean }>({ lastSuccessfulAt: null, failed: false });
+  const [allocationSupplyId, setAllocationSupplyId] = useState<number | null>(null);
   const [clockNow, setClockNow] = useState(Date.now());
 
   useEffect(() => {
@@ -89,6 +97,12 @@ function App() {
     setQueueRefresh((current) => ({ ...current, failed: true }));
   }, []);
 
+  const handleAllocateFromShortage = (supplyId: number) => {
+    setAllocationSupplyId(supplyId);
+    setTab('allocation');
+  };
+  const handleInitialSupplyUsed = useCallback(() => setAllocationSupplyId(null), []);
+
   if (!user) {
     return <Login onLoggedIn={setUser} />;
   }
@@ -132,6 +146,9 @@ function App() {
           <button className={tab === 'queue' ? 'nav-item is-active' : 'nav-item'} onClick={() => setTab('queue')} aria-current={tab === 'queue' ? 'page' : undefined}>
             <span className="nav-copy"><strong>Priority queue</strong></span>
           </button>
+          <button className={tab === 'allocation' ? 'nav-item is-active' : 'nav-item'} onClick={() => setTab('allocation')} aria-current={tab === 'allocation' ? 'page' : undefined}>
+            <span className="nav-copy"><strong>Allocation</strong></span>
+          </button>
           <button className={tab === 'tasks' ? 'nav-item is-active' : 'nav-item'} onClick={() => setTab('tasks')} aria-current={tab === 'tasks' ? 'page' : undefined}>
             <span className="nav-copy"><strong>Volunteer tasks</strong></span>
           </button>
@@ -161,7 +178,7 @@ function App() {
             </div>
           </section>
 
-          <ShortageBanner />
+          <ShortageBanner onAllocate={handleAllocateFromShortage} />
 
           <section className="workspace-panel" aria-label={section.title}>
             {tab === 'board' && <ShelterBoard canManage={user.role === 'Admin' || user.role === 'ShelterCoordinator'} />}
@@ -172,6 +189,15 @@ function App() {
                 onRefreshSuccess={handleQueueRefreshSuccess}
                 onRefreshError={handleQueueRefreshError}
               />
+            )}
+            {tab === 'allocation' && (
+              <>
+                <AllocationWorkspace
+                  initialSupplyId={allocationSupplyId}
+                  onInitialSupplyUsed={handleInitialSupplyUsed}
+                />
+                <AllocationHistory />
+              </>
             )}
             {tab === 'tasks' && <VolunteerTaskTree />}
           </section>

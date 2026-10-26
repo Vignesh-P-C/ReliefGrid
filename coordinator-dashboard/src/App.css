@@ -308,6 +308,57 @@
   .login-form-side { min-height: calc(100vh - 260px); padding: 28px 22px 20px; }
 }
 
+/* ---- Allocation workspace (Phase 2) ---- */
+.allocation-workspace { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); align-items: start; gap: 16px; }
+.allocation-panel { display: grid; gap: 11px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.allocation-panel-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.allocation-panel-heading h3 { margin: 0; color: var(--ink); font-size: 13px; }
+.allocation-panel-note { color: var(--quiet); font-size: 10px; }
+.allocation-search { display: grid; gap: 4px; }
+.allocation-stock-scroll { max-height: 470px; overflow-y: auto; }
+.allocation-stock-table { min-width: 0; }
+.allocation-stock-table th, .allocation-stock-table td { padding: 8px 9px; font-size: 11px; }
+.allocation-stock-table tbody tr { cursor: pointer; }
+.allocation-stock-table tbody tr.is-selected { background: var(--surface-soft); box-shadow: inset 3px 0 0 var(--green); }
+.stock-warning { display: block; margin-top: 3px; color: var(--red); font-size: 9px; font-weight: 600; }
+.allocation-candidate-list { display: grid; max-height: 440px; gap: 8px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.allocation-candidate { display: grid; width: 100%; grid-template-columns: auto minmax(0, 1fr); gap: 9px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+.allocation-candidate:hover { border-color: #b9d5bf; }
+.allocation-candidate.is-selected { border-color: var(--green); background: var(--surface-soft); }
+.candidate-marker { color: var(--green-dark); font-size: 13px; line-height: 1.35; }
+.candidate-body { display: grid; min-width: 0; gap: 4px; }
+.candidate-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.candidate-heading strong { font-size: 12px; }
+.candidate-request-no, .candidate-meta { color: var(--quiet); font-size: 10px; }
+.candidate-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.candidate-estimate { color: #7e5908; font-weight: 600; }
+.candidate-needs { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--green-dark); font-size: 10px; font-weight: 600; }
+.allocation-confirm { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.allocation-need-choice { display: grid; gap: 6px; margin: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; }
+.allocation-need-choice legend { padding: 0 4px; color: var(--muted); font-size: 10px; font-weight: 600; }
+.allocation-need-option { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 11px; }
+.allocation-summary { margin: 0; padding: 9px 10px; border: 1px dashed #b9d5bf; border-radius: 6px; background: var(--surface-soft); color: var(--muted); font-size: 11px; line-height: 1.5; }
+.allocation-summary strong { color: var(--ink); }
+.allocation-history { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.allocation-history .module-heading h3 { margin: 4px 0 0; font-size: 15px; }
+.need-list { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.need-list li { color: var(--ink); font-size: 11px; }
+.need-list li.is-met { color: var(--quiet); }
+.need-list small { display: block; color: var(--quiet); font-size: 9px; }
+.queue-needs { min-width: 190px; }
+.shortage-row { grid-template-columns: minmax(110px, 1fr) minmax(110px, 1fr) auto auto; }
+.shortage-action { min-height: 30px; padding: 0 10px; }
+
+@media (max-width: 1080px) {
+  .allocation-workspace { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .allocation-workspace { grid-template-columns: 1fr; }
+  .allocation-stock-scroll, .allocation-candidate-list { max-height: none; }
+  .shortage-row { grid-template-columns: 1fr; gap: 4px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
