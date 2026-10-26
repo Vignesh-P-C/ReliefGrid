@@ -344,7 +344,7 @@ Expected on a database that has not run the Phase 3 migration: `checkin_return_t
 
 ### Constraint-violation check (informational — the migration now normalises this itself)
 
-The Phase 3 migration adds `CHECK (status IN ('active', 'inactive'))` to `Shelters.status`. Like Phase 2's status constraint, it now **normalises unexpected values to `'active'` before adding the CHECK**, inside the same guarded `DO $$` block, so a stray value from the old unconstrained column cannot fail the deploy. Run this query anyway, before migrating, so you know in advance whether any row will be silently changed to `'active'`:
+The Phase 3 migration adds `CHECK (status IN ('active', 'inactive'))` to `Shelters.status`. Like Phase 2's status constraint, it now **normalises unexpected values to `'inactive'` before adding the CHECK**, inside the same guarded `DO $$` block, so a stray value from the old unconstrained column cannot fail the deploy. It normalises *closed* on purpose: an unknown or typo'd status was already invisible to `find_nearest_shelters()` and rejected by `checkin_to_shelter()`, so flipping it to `'active'` would newly publish a shelter nobody has confirmed is operating. The block raises a `NOTICE` with the number of rows it changed. Run this query before migrating to know which rows that will be:
 
 ```sql
 SELECT shelter_id, name, status
@@ -352,13 +352,13 @@ FROM Shelters
 WHERE status IS NULL OR status NOT IN ('active', 'inactive');
 ```
 
-Expected: 0 rows. The project's seed data only ever sets `status = 'active'`, so on the seeded demo database this will be empty. If it is not empty and `'active'` is the wrong default for one of those rows (for example, it should really be `'inactive'`), fix it with an explicit `UPDATE` **before** running the migration — once the migration runs, every row this query would have matched is already `'active'`.
+Expected: 0 rows. The project's seed data only ever sets `status = 'active'`, so on the seeded demo database this will be empty. If it is not empty, the listed shelters come out of the migration as `inactive` — appear as **Inactive** on the board and in `find_nearest_shelters()` results. Reopen any that are genuinely operating with an explicit `UPDATE ... SET status = 'active'` (or the Edit form on the Live shelter board) after the migration.
 
 ## 19. Step 11 — apply the Phase 3 migration
 
 | # | File | What it changes | Needed? |
 | --- | --- | --- | --- |
-| 4 | `database/migrations/20261025_phase3_capacity_truth.sql` | Normalises any `Shelters.status` value outside `active`/`inactive` to `'active'`, then adds the `shelters_status_valid` CHECK; replaces `checkin_to_shelter(int,int)` (drops it first, since its return type changes from `BOOLEAN` to `VARCHAR`) so it returns `'ok'` / `'not_found'` / `'inactive'` / `'full'` / `'invalid_quantity'` instead of a boolean; adds `checkout_from_shelter(int,int)` returning `'ok'` / `'not_found'` / `'exceeds_occupancy'` / `'invalid_quantity'`; rebuilds `Shelter_Live_Status` with `event_id`, `event_name`, and `is_active` appended after the original six columns. | **Yes** if `checkin_return_type` was `boolean` in section 18. |
+| 4 | `database/migrations/20261025_phase3_capacity_truth.sql` | Normalises any `Shelters.status` value outside `active`/`inactive` to `'inactive'` (fail closed, with a `NOTICE` counting the rows), then adds the `shelters_status_valid` CHECK; replaces `checkin_to_shelter(int,int)` (drops it first, since its return type changes from `BOOLEAN` to `VARCHAR`) so it returns `'ok'` / `'not_found'` / `'inactive'` / `'full'` / `'invalid_quantity'` instead of a boolean; adds `checkout_from_shelter(int,int)` returning `'ok'` / `'not_found'` / `'exceeds_occupancy'` / `'invalid_quantity'`; rebuilds `Shelter_Live_Status` with `event_id`, `event_name`, and `is_active` appended after the original six columns. | **Yes** if `checkin_return_type` was `boolean` in section 18. |
 
 This file is **not listed** in `database/migrations/README.md` (that file only documents migrations 1–3, the Phase A/Phase 2 set) — a human should add it there as migration 4; this addendum does not edit that file.
 

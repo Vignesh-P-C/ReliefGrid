@@ -272,6 +272,9 @@ router.get('/:id', requireAuth, requireRole('Admin', 'ShelterCoordinator'), asyn
 // GET /api/shelters/:id/tasks — recursive CTE task-dependency tree for a shelter
 router.get('/:id/tasks', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async (req, res) => {
   const { id } = req.params;
+  if (!isPositiveInteger(id)) {
+    return res.status(400).json({ message: 'shelter id must be a positive whole number' });
+  }
   try {
     const result = await pool.query(
       `WITH RECURSIVE task_tree AS (

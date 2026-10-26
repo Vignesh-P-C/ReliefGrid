@@ -233,6 +233,9 @@ async function main() {
 
     const patch = await req('PATCH', '/api/shelters/abc', adminToken, { status: 'inactive' });
     check('PATCH with a non-numeric id returns 400', patch.status === 400, patch.status);
+
+    const tasks = await req('GET', '/api/shelters/abc/tasks', adminToken);
+    check('task tree with a non-numeric id returns 400', tasks.status === 400, tasks.status);
   }
 
   console.log('\n-- Audit #25: status validation rejects an empty string, not a silent default --');
