@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import api from '../lib/api';
-import type { DisasterEvent } from '../types';
+import type { DisasterEvent, SupplyCategory } from '../types';
 
 type RequestType = 'shelter' | 'medical' | 'food' | 'rescue';
 
@@ -30,9 +30,17 @@ function readErrorMessage(requestError: unknown, fallback: string): string {
   return error.response?.data?.message || fallback;
 }
 
+interface NeedDraft {
+  checked: boolean;
+  quantity: number;
+}
+
 export default function RequestForm() {
   const [form, setForm] = useState(initialForm);
   const [events, setEvents] = useState<DisasterEvent[]>([]);
+  const [categories, setCategories] = useState<SupplyCategory[]>([]);
+  const [categoriesUnavailable, setCategoriesUnavailable] = useState(false);
+  const [needs, setNeeds] = useState<Record<number, NeedDraft>>({});
   const [submitted, setSubmitted] = useState(false);
   const [referenceId, setReferenceId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -50,6 +58,28 @@ export default function RequestForm() {
       .catch((requestError) => console.error('Failed to fetch active events', requestError));
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    api.get<SupplyCategory[]>('/supplies/categories')
+      .then((response) => { if (active) setCategories(response.data); })
+      .catch(() => { if (active) setCategoriesUnavailable(true); });
+    return () => { active = false; };
+  }, []);
+
+  const toggleNeed = (categoryId: number, checked: boolean) => {
+    setNeeds((previous) => ({
+      ...previous,
+      [categoryId]: { checked, quantity: previous[categoryId]?.quantity ?? form.num_people },
+    }));
+  };
+
+  const changeNeedQuantity = (categoryId: number, quantity: number) => {
+    setNeeds((previous) => ({
+      ...previous,
+      [categoryId]: { checked: true, quantity },
+    }));
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
@@ -66,6 +96,15 @@ export default function RequestForm() {
       return;
     }
 
+    const selectedNeeds = Object.entries(needs).filter(([, draft]) => draft.checked);
+    for (const [categoryId, draft] of selectedNeeds) {
+      if (!Number.isInteger(draft.quantity) || draft.quantity < 1) {
+        const name = categories.find((category) => category.category_id === Number(categoryId))?.name ?? 'each item';
+        setError(`Enter how many of ${name} you need.`);
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     const submitWithLocation = async (latitude?: number, longitude?: number) => {
@@ -77,6 +116,10 @@ export default function RequestForm() {
           event_id: form.event_id ? Number(form.event_id) : null,
           latitude,
           longitude,
+          needs: selectedNeeds.map(([categoryId, draft]) => ({
+            category_id: Number(categoryId),
+            quantity_needed: draft.quantity,
+          })),
         });
         setReferenceId(response.data?.request_id ?? null);
         setSubmitted(true);
@@ -109,7 +152,7 @@ export default function RequestForm() {
           <p className="request-reference"><strong>Your reference number is #{referenceId}.</strong> Quote this number if you call or follow up about this request.</p>
         )}
         <p>Your details are now with the response team. Keep your phone nearby in case a coordinator needs to contact you.</p>
-        <button className="secondary-button" type="button" onClick={() => { setForm(initialForm); setSubmitted(false); setReferenceId(null); setError(''); }}>Send another request</button>
+        <button className="secondary-button" type="button" onClick={() => { setForm(initialForm); setNeeds({}); setSubmitted(false); setReferenceId(null); setError(''); }}>Send another request</button>
       </div>
     );
   }
@@ -170,6 +213,52 @@ export default function RequestForm() {
               <div className="range-labels"><span>Can wait</span><span>Critical</span></div>
             </div>
           </div>
+
+          <fieldset className="need-picker">
+            <legend>What do you need? <small>Optional</small></legend>
+            {categoriesUnavailable ? (
+              <p className="need-picker-note">
+                The item list is unavailable right now. Your request will still be sent and the response team will decide what to bring.
+              </p>
+            ) : categories.length === 0 ? (
+              <p className="need-picker-note">Loading the item list… If it does not appear, you can still send the request.</p>
+            ) : (
+              <div className="need-options">
+                {categories.map((category) => {
+                  const draft = needs[category.category_id];
+                  const checked = draft?.checked ?? false;
+                  return (
+                    <div key={category.category_id} className={`need-option${checked ? ' is-selected' : ''}`}>
+                      <label className="need-option-label">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => toggleNeed(category.category_id, event.target.checked)}
+                        />
+                        <span>{category.name}</span>
+                      </label>
+                      <label className="need-option-quantity">
+                        <span>Amount</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={100000}
+                          step={1}
+                          value={draft?.quantity ?? form.num_people}
+                          disabled={!checked}
+                          onChange={(event) => changeNeedQuantity(category.category_id, Number(event.target.value))}
+                          aria-label={`How many ${category.name} do you need`}
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <p className="need-picker-note">
+              Choose the items you need and how many. If you leave this blank, the team will send whatever is available — or a place to stay if you asked for shelter.
+            </p>
+          </fieldset>
 
           <div className="location-note"><span className="location-note-mark" aria-hidden="true">⌖</span><p><strong>Location is optional.</strong> We may ask your browser for an approximate location while sending this request. If you decline, the request is still sent without it.</p></div>
 
