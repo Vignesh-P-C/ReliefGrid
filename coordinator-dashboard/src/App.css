@@ -141,6 +141,16 @@
 .action-feedback.is-error { color: var(--red); }
 .action-feedback.is-success { color: var(--green-dark); }
 
+.checkin-checkout-group { display: flex; flex-wrap: wrap; gap: 12px; }
+.module-heading select { min-height: 36px; padding: 0 9px; border: 1px solid var(--line); border-radius: 5px; background: #fff; color: var(--ink); font-size: 11px; }
+
+.shelter-manage-form { padding: 14px 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); margin: 0 0 18px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.form-grid label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 600; }
+.form-grid input, .form-grid select { min-height: 36px; padding: 0 9px; border: 1px solid var(--line); border-radius: 5px; background: #fff; color: var(--ink); font-size: 11px; }
+.form-grid-wide { grid-column: 1 / -1; }
+.shelter-edit-panel { margin-top: 18px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+
 .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 22px; }
 .summary-card { display: flex; min-height: 112px; flex-direction: column; justify-content: space-between; padding: 14px 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .summary-card-accent { border-color: #b9d5bf; background: var(--surface-soft); }
@@ -181,6 +191,8 @@
 .status-pill.is-near-full .status-dot { background: var(--amber); }
 .status-pill.is-full { background: #fbe5e2; color: var(--red); }
 .status-pill.is-full .status-dot { background: var(--red); }
+.status-pill.is-inactive { margin-left: 6px; background: #ececec; color: var(--quiet); }
+.status-pill.is-inactive .status-dot { background: var(--quiet); }
 .module-footnote { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; color: var(--muted); font-size: 10px; }
 .module-footnote .status-dot { width: 6px; height: 6px; }
 
@@ -281,6 +293,7 @@
   .allocation-form { grid-template-columns: 1fr; align-items: stretch; }
   .allocation-form .primary-button { width: 100%; }
   .shelter-action-form { min-width: 175px; }
+  .form-grid { grid-template-columns: 1fr; }
   .task-shelter-select { width: 100%; }
   .task-tree-heading { align-items: stretch; }
   .shortage-heading { align-items: flex-start; }

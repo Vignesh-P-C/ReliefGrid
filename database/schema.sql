@@ -40,7 +40,8 @@ CREATE TABLE Shelters (
   capacity_occupied INT NOT NULL DEFAULT 0 CHECK (capacity_occupied >= 0),
   contact_number VARCHAR(15),
   coordinator_id INT REFERENCES Users(user_id),
-  status VARCHAR(20) DEFAULT 'active',
+  status VARCHAR(20) DEFAULT 'active'
+    CONSTRAINT shelters_status_valid CHECK (status IN ('active', 'inactive')),
   CHECK (capacity_occupied <= capacity_total)
 );
 
@@ -264,20 +265,61 @@ $$ LANGUAGE plpgsql;
 -- 2.3b SAFE check-in — this is what the application actually calls.
 -- FOR UPDATE takes a row lock so concurrent check-ins on the same shelter
 -- serialize instead of racing (Module 6: lock-based concurrency control).
-CREATE OR REPLACE FUNCTION checkin_to_shelter(p_shelter_id INT, p_num_people INT) RETURNS BOOLEAN AS $$
+-- Returns 'ok', 'not_found', 'inactive', or 'full' so the API can tell these
+-- apart instead of reporting a false success for a missing/closed shelter.
+CREATE OR REPLACE FUNCTION checkin_to_shelter(p_shelter_id INT, p_num_people INT) RETURNS VARCHAR AS $$
 DECLARE
-  occ INT; tot INT;
+  occ INT; tot INT; shelter_status VARCHAR;
 BEGIN
-  SELECT capacity_occupied, capacity_total INTO occ, tot
+  IF p_num_people IS NULL OR p_num_people <= 0 THEN
+    RETURN 'invalid_quantity';
+  END IF;
+
+  SELECT capacity_occupied, capacity_total, status INTO occ, tot, shelter_status
   FROM Shelters WHERE shelter_id = p_shelter_id
   FOR UPDATE;
 
+  IF NOT FOUND THEN
+    RETURN 'not_found';
+  END IF;
+
+  IF shelter_status IS DISTINCT FROM 'active' THEN
+    RETURN 'inactive';
+  END IF;
+
   IF occ + p_num_people > tot THEN
-    RETURN FALSE;
+    RETURN 'full';
   END IF;
 
   UPDATE Shelters SET capacity_occupied = occ + p_num_people WHERE shelter_id = p_shelter_id;
-  RETURN TRUE;
+  RETURN 'ok';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2.3c SAFE check-out — the counterpart to checkin_to_shelter(), under the
+-- same row lock, never letting occupancy go negative.
+CREATE OR REPLACE FUNCTION checkout_from_shelter(p_shelter_id INT, p_num_people INT) RETURNS VARCHAR AS $$
+DECLARE
+  occ INT;
+BEGIN
+  IF p_num_people IS NULL OR p_num_people <= 0 THEN
+    RETURN 'invalid_quantity';
+  END IF;
+
+  SELECT capacity_occupied INTO occ
+  FROM Shelters WHERE shelter_id = p_shelter_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN 'not_found';
+  END IF;
+
+  IF p_num_people > occ THEN
+    RETURN 'exceeds_occupancy';
+  END IF;
+
+  UPDATE Shelters SET capacity_occupied = occ - p_num_people WHERE shelter_id = p_shelter_id;
+  RETURN 'ok';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -517,13 +559,19 @@ FOR EACH ROW EXECUTE FUNCTION log_capacity_change();
 -- 4. VIEWS
 -- ============================================================
 
+-- event_id/event_name/is_active let the dashboard scope totals to one event
+-- and to active shelters only (Audit #22). Appended after the original
+-- columns so CREATE OR REPLACE VIEW stays backward-compatible.
 CREATE VIEW Shelter_Live_Status AS
-SELECT shelter_id, name, capacity_total, capacity_occupied,
-  ROUND(100.0 * capacity_occupied / NULLIF(capacity_total,0), 1) AS occupancy_pct,
-  CASE WHEN capacity_occupied >= capacity_total THEN 'full'
-       WHEN capacity_occupied >= 0.9 * capacity_total THEN 'near-full'
-       ELSE 'available' END AS status
-FROM Shelters;
+SELECT s.shelter_id, s.name, s.capacity_total, s.capacity_occupied,
+  ROUND(100.0 * s.capacity_occupied / NULLIF(s.capacity_total,0), 1) AS occupancy_pct,
+  CASE WHEN s.capacity_occupied >= s.capacity_total THEN 'full'
+       WHEN s.capacity_occupied >= 0.9 * s.capacity_total THEN 'near-full'
+       ELSE 'available' END AS status,
+  s.event_id, e.name AS event_name,
+  (s.status = 'active') AS is_active
+FROM Shelters s
+LEFT JOIN Disaster_Events e ON e.event_id = s.event_id;
 
 CREATE OR REPLACE VIEW Critical_Supply_Shortage AS
 SELECT s.shelter_id, sh.name AS shelter_name, s.item_name, s.quantity,

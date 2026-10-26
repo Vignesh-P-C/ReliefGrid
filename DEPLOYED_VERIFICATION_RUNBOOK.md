@@ -302,11 +302,210 @@ Keep this with the deployment notes; never include tokens, passwords or the data
 
 ---
 
-# Phase 4 addendum — Portal trust
+# Phase 3 addendum — Capacity truth
 
-This addendum covers Phase 4 only (issues #67–#74, FRONTEND_AUDIT.md items 34, 35, 36, 38, 39, 40, 41, 42). It assumes the Phase A and Phase 2 deploy described above is already live, and extends the same stack: **one Render API, two Vercel frontends, one Supabase database.** It does not repeat section 6's preflight — run that first if you have not already.
+This addendum covers Phase 3 only (issues #62–#66, FRONTEND_AUDIT.md items 19, 20, 21, 22, 25). It assumes the Phase A and Phase 2 deploy described above is already live, and extends the same stack: **one Render API, two Vercel frontends, one Supabase database.** It does not repeat section 6's preflight — run that first if you have not already, so you know which earlier migrations have actually landed.
 
-## 16. Phase 4 — overview
+## 16. Phase 3 — overview
+
+Phase 3 touches **shelters only**: the `Shelters` table, `checkin_to_shelter()`, a new `checkout_from_shelter()`, the `Shelter_Live_Status` view, `server/routes/shelters.js`, and the Coordinator Dashboard's **Live shelter board** (`ShelterBoard.tsx`). It does not touch `Aid_Requests`, `Request_Needs`, `Supplies`, `Allocations`, or anything in `server/routes/aidRequests.js` or `server/routes/supplies.js`.
+
+| Needs a change? | Answer |
+| --- | --- |
+| Database migration | **Yes** — `database/migrations/20261025_phase3_capacity_truth.sql`. |
+| Render (API) redeploy | **Yes** — `server/routes/shelters.js` gains `POST /api/shelters`, `PATCH /api/shelters/:id`, `GET /api/shelters/:id`, and `POST /api/shelters/:id/checkout`; `POST /api/shelters/:id/checkin` and `GET /api/shelters/ranked` change behaviour (see section 21). |
+| Vercel — Coordinator Dashboard redeploy | **Yes** — `ShelterBoard.tsx`, `App.tsx`, `App.css`, `types.ts` all change. |
+| Vercel — Public Portal redeploy | **No.** Phase 3's diff does not touch any file under `public-portal/`. Redeploying it is harmless but unnecessary. |
+| New environment variable | **No.** Same as Phase A and Phase 2 — `VITE_API_URL`, `DATABASE_URL`, `JWT_SECRET` are unchanged. |
+
+## 17. Phase 3 — prerequisites
+
+Confirm Phase A and Phase 2 are applied using **section 6's preflight query**, not a repeat of it here. Phase 3 has **no functional dependency** on either: `checkin_to_shelter()`, `checkout_from_shelter()`, and `Shelter_Live_Status` reference only `Shelters` and `Disaster_Events`, neither of which Phase A or Phase 2 changed. You can apply the Phase 3 migration on a database that has only the original `schema.sql` baseline, before Phase A or Phase 2. The only reason to confirm them first is that this runbook assumes you are operating on the same already-deployed stack those sections describe.
+
+**Data prerequisite:** none. Unlike Phase 2 (which needed `Supply_Categories` populated), Phase 3 reads and writes only columns already present in every `Shelters` row since the original seed.
+
+## 18. Step 10 — Phase 3 preflight: what the database already has
+
+Supabase → **SQL Editor** → **New query**. Read-only:
+
+```sql
+SELECT
+  pg_get_function_result('checkin_to_shelter(int,int)'::regprocedure)        AS checkin_return_type,
+  to_regprocedure('checkout_from_shelter(int,int)') IS NOT NULL              AS checkout_exists,
+  EXISTS (SELECT 1 FROM pg_constraint
+          WHERE conname = 'shelters_status_valid'
+            AND conrelid = 'shelters'::regclass)                            AS status_check_exists,
+  EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'shelter_live_status'
+            AND column_name = 'is_active')                                  AS view_has_is_active;
+```
+
+Expected on a database that has not run the Phase 3 migration: `checkin_return_type = boolean`, `checkout_exists = false`, `status_check_exists = false`, `view_has_is_active = false`.
+
+### Constraint-violation check (informational — the migration now normalises this itself)
+
+The Phase 3 migration adds `CHECK (status IN ('active', 'inactive'))` to `Shelters.status`. Like Phase 2's status constraint, it now **normalises unexpected values to `'inactive'` before adding the CHECK**, inside the same guarded `DO $$` block, so a stray value from the old unconstrained column cannot fail the deploy. It normalises *closed* on purpose: an unknown or typo'd status was already invisible to `find_nearest_shelters()` and rejected by `checkin_to_shelter()`, so flipping it to `'active'` would newly publish a shelter nobody has confirmed is operating. The block raises a `NOTICE` with the number of rows it changed. Run this query before migrating to know which rows that will be:
+
+```sql
+SELECT shelter_id, name, status
+FROM Shelters
+WHERE status IS NULL OR status NOT IN ('active', 'inactive');
+```
+
+Expected: 0 rows. The project's seed data only ever sets `status = 'active'`, so on the seeded demo database this will be empty. If it is not empty, the listed shelters come out of the migration as `inactive` — appear as **Inactive** on the board and in `find_nearest_shelters()` results. Reopen any that are genuinely operating with an explicit `UPDATE ... SET status = 'active'` (or the Edit form on the Live shelter board) after the migration.
+
+## 19. Step 11 — apply the Phase 3 migration
+
+| # | File | What it changes | Needed? |
+| --- | --- | --- | --- |
+| 4 | `database/migrations/20261025_phase3_capacity_truth.sql` | Normalises any `Shelters.status` value outside `active`/`inactive` to `'inactive'` (fail closed, with a `NOTICE` counting the rows), then adds the `shelters_status_valid` CHECK; replaces `checkin_to_shelter(int,int)` (drops it first, since its return type changes from `BOOLEAN` to `VARCHAR`) so it returns `'ok'` / `'not_found'` / `'inactive'` / `'full'` / `'invalid_quantity'` instead of a boolean; adds `checkout_from_shelter(int,int)` returning `'ok'` / `'not_found'` / `'exceeds_occupancy'` / `'invalid_quantity'`; rebuilds `Shelter_Live_Status` with `event_id`, `event_name`, and `is_active` appended after the original six columns. | **Yes** if `checkin_return_type` was `boolean` in section 18. |
+
+This file is **not listed** in `database/migrations/README.md` (that file only documents migrations 1–3, the Phase A/Phase 2 set) — a human should add it there as migration 4; this addendum does not edit that file.
+
+**Idempotency:** safe to re-run. The status-check block is guarded (`IF NOT EXISTS`); `checkin_to_shelter()` is preceded by an explicit `DROP FUNCTION IF EXISTS`, so re-running the file drops and recreates it cleanly every time rather than failing like Phase A's migration 2 does; `checkout_from_shelter()` uses `CREATE OR REPLACE`; the view uses `CREATE OR REPLACE VIEW`. There is no `psql`-style batch command documented for this file in the repo (only `database/migrations/README.md`'s Phase A/2 batch exists) — paste it into the Supabase SQL Editor as one statement block, the same way migrations 1–3 were applied.
+
+**Side effects to expect, not bugs:**
+- The old `checkin_to_shelter(int,int)` **BOOLEAN**-returning function is dropped and replaced. See section 21 for why the deploy order matters here specifically.
+- No trigger changes. `checkout_from_shelter()` reuses the existing `trg_log_capacity` trigger (`AFTER UPDATE OF capacity_occupied ON Shelters`) because it updates the same column the same way check-in does — every successful check-out writes a `Shelter_Capacity_Log` row automatically, with no new trigger needed.
+- `mv_daily_capacity_trend` is untouched. Because check-outs now also log to `Shelter_Capacity_Log`, the daily trend will show occupancy *decreasing* on days with check-outs once you `REFRESH MATERIALIZED VIEW mv_daily_capacity_trend` — this is new real data, not a bug in the view.
+- No data backfill. The one normalisation this migration performs is the `Shelters.status` reset described above — nothing else is touched.
+- Both functions now reject `p_num_people <= 0` with `'invalid_quantity'` before taking any lock. The deployed API already validated this client-side, so this only matters for anyone calling the functions directly (test scripts, `psql`, a future caller) — it is not reachable through the current routes.
+
+## 20. Step 12 — verify the Phase 3 schema landed
+
+```sql
+-- 1. Check-in must return a status code, not a boolean.
+SELECT pg_get_function_result('checkin_to_shelter(int,int)'::regprocedure);
+-- Expected: character varying
+
+-- 2. Check-out must exist.
+SELECT pg_get_function_arguments('checkout_from_shelter(int,int)'::regprocedure);
+-- Expected: p_shelter_id integer, p_num_people integer
+
+-- 3. The status CHECK must be in place.
+SELECT conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conname = 'shelters_status_valid' AND conrelid = 'shelters'::regclass;
+-- Expected: one row, definition CHECK (((status)::text = ANY (ARRAY['active'::character varying, 'inactive'::character varying]::text[])))
+
+-- 4. The view must carry the new columns.
+SELECT string_agg(attname, ',' ORDER BY attname)
+FROM pg_attribute
+WHERE attrelid = 'shelter_live_status'::regclass AND attnum > 0;
+-- Expected: capacity_occupied,capacity_total,event_id,event_name,is_active,name,occupancy_pct,shelter_id,status
+```
+
+Query 1 must not error and must not say `boolean` — either means the drop/recreate did not happen.
+
+## 21. Step 13 — deploy order and hazards (Phase 3)
+
+Phase 3 has a hazard the Phase A/2 rollout did not: **a mismatch here does not always error loudly — one direction fails silently.**
+
+**If the migration runs before the new API deploys** (old `server/routes/shelters.js` still live):
+The old check-in route reads the function's result as `if (result.rows[0].success)`. Before the migration, `checkin_to_shelter()` returns a Postgres `BOOLEAN`, which `pg` hands to Node as a real JavaScript `true`/`false`. After the migration, the same call returns a `VARCHAR` — `'ok'`, `'not_found'`, `'inactive'`, or `'full'` — and `pg` hands that to Node as a string. **Every one of those four strings is truthy in JavaScript.** The old code's `if (result.rows[0].success)` will therefore be `true` for every outcome, including `'not_found'`, `'inactive'`, and `'full'` — it reports `200 {"success": true}` for a check-in that the function actually refused. This is **not** a crash and **not** a database write (the function only updates `capacity_occupied` on the `'ok'` branch), so no data corrupts — but the coordinator dashboard shows a false success message for a check-in that never happened. Keep this window as short as possible; if you cannot deploy within minutes, apply the migration and the API together or not at all.
+
+**If the new API deploys before the migration runs:**
+The new check-in route does `if (outcome === 'ok')`. Before the migration, the database still returns a Postgres `BOOLEAN`, which `pg` hands to Node as `true`/`false` — neither of which strictly equals the string `'ok'`. Every check-in request, including ones with available space, falls through to the `CAPACITY_RESULT_RESPONSES[outcome] || { status: 500, message: 'Check-in failed' }` default and returns `500`. This is a loud, visible outage (not silent), limited to check-in: `GET /api/shelters` still works (it queries the *view*, not the function), but **check-in is completely unavailable** until the migration lands. Check-out calls `checkout_from_shelter()`, which does not exist yet on an unmigrated database, so those fail with a clean `500 "Check-out failed"` from the generic catch block (the underlying Postgres error is `42883 undefined_function`).
+
+**If the new Coordinator Dashboard deploys before the migration runs:**
+`ShelterBoard.tsx` reads `shelter.is_active` from `GET /api/shelters` and filters the headline totals on it: `shelters.filter((shelter) => shelter.is_active)`. On an unmigrated view, that field is simply absent from the JSON, so `shelter.is_active` is `undefined` in the browser — which is falsy. **Every shelter is excluded from the "People sheltered" and "Open spaces" summary cards**, which will both read `0`, even though real people are checked in. The per-shelter table rows still render correctly (they don't depend on `is_active`), so this looks like a totals bug, not a missing-data error, and could be mistaken for a real regression if you don't know the schema is behind.
+
+**Safest order:** apply the migration first, confirm it with section 20's queries, then deploy the API, then the Coordinator Dashboard. Keep the gap to a few minutes, the same guidance as section 9.
+
+**Proof the new API build is live** (no token, no mutation):
+
+```bash
+curl -i https://<render-host>/api/shelters/1
+```
+
+- Old API: Express's default 404 page (`Cannot GET /api/shelters/1`) — no route matches a bare `/:id` on the old router.
+- New API: `401 {"message":"Missing or malformed Authorization header"}` — the route exists and `requireAuth` ran. A `401` here is the "it's live" signal, not a problem.
+
+Confirm both Vercel projects separately, the same way section 9 step 4 describes — this phase only requires the Coordinator Dashboard project to have picked up the new commit; the Public Portal project does not need to (section 16).
+
+## 22. Step 14 — Phase 3 functional checks
+
+Sign in to the Coordinator Dashboard as staff and open **Live shelter board**. Use any shelter that currently has spare capacity and is `active`, unless the row says otherwise.
+
+| ID | Issue | Role needed | Action | Expected |
+| --- | --- | --- | --- | --- |
+| C1 | #62 | Staff (any authenticated role — check-in/out is not role-restricted) | Check in a few people, then use the new **Check out** control for fewer people than you just checked in. | `200 {"success": true}`; **Occupancy** drops by exactly that amount; a new row appears in `Shelter_Capacity_Log` for this shelter (same trigger as check-in). |
+| C2 | #62 | Staff | Try to check out more people than the shelter currently shows as occupied. | `409`, message `"Cannot check out more people than are currently checked in"`; occupancy unchanged. |
+| C3 | #62 | Staff | Check out from a shelter ID that does not exist (e.g. via the API directly, since the UI only offers real IDs). | `404`, message `"No shelter exists with this ID"`. |
+| C4 | #63 | Staff | Edit a shelter's status to **Inactive / closed** (see C10), then try to check someone in to it. | `409`, message `"This shelter is closed/inactive and cannot accept check-ins"`; occupancy unchanged; no `shelter-updated` socket event, so other open dashboards do not refresh. |
+| C5 | #64 | Staff | Attempt a check-in against an unknown shelter ID via the API. | `404`, message `"No shelter exists with this ID"` — **not** `200 {"success": true}` as it was before Phase 3. |
+| C6 | #65 | Any signed-in role | On **Live shelter board**, note the "People sheltered" and "Open spaces" summary cards, then close a shelter (set it **Inactive**) that has people checked in. | The closed shelter still appears in the table with an **Inactive** badge next to its occupancy status, but its capacity drops out of both summary cards — they recompute from active shelters only. |
+| C7 | #65 | Any signed-in role | Use the event filter dropdown above the table (only shown when more than one event is present). | Selecting an event narrows the table and the summary cards to shelters in that event only; an inactive shelter in the selected event is still excluded from the totals as in C6. |
+| C8 | #65 | Any signed-in role | Open **Occupancy ranking**. | A shelter you set **Inactive** in C6 does not appear in any event's ranked list at all. |
+| C9 | #66 | Admin or ShelterCoordinator | Click **Add shelter**, fill name/latitude/longitude/capacity, submit. | `201`; the form closes and the new shelter appears in the table immediately, no manual reload. |
+| C10 | #66 | Admin or ShelterCoordinator | Click **Edit** on a shelter, change **Status** to **Inactive / closed**, save — including one that still has people checked in. | `200`; closing is allowed regardless of current occupancy. The row shows the **Inactive** badge and loses its **Check in** control (replaced with "Closed — no new check-ins."), but keeps **Check out** — a closed shelter can still be occupied and must stay emptyable. |
+| C11 | #66 | Admin or ShelterCoordinator | On a shelter with people checked in, try to **Edit** its capacity down to below the current occupancy. | `409`, message `"capacity_total cannot be reduced below the current occupancy"`; nothing is changed. |
+| C12 | #66 | Volunteer | Attempt **Add shelter** or **Edit** (via the API, since the UI hides these controls for this role). | `403`. |
+| C13 | regression | Admin or ShelterCoordinator | Record a priority review on **Priority queue** (Phase A, A1) or complete a Food need on **Allocation** (Phase 2, P4). | Behaves exactly as sections 10 and 11 describe — unaffected by the Phase 3 deploy, since Phase 3 touches no shared code path with triage or allocation. |
+| C14 | #62, #66 | Staff | On the shelter closed in C10, use **Check out** to remove everyone still inside it. | `200` each time; occupancy reaches `0`. `checkout_from_shelter()` never checks `status`, so this works on an inactive shelter exactly as it does on an active one — confirm check-in on the same shelter still returns `409` throughout. |
+| C15 | #25 | Staff (API) | `POST /api/shelters/abc/checkin`, `POST /api/shelters/abc/checkout`, `GET /api/shelters/abc`, `PATCH /api/shelters/abc` — a non-numeric ID in place of a real one. | `400` on all four, with a message naming the `id`/`shelter id` problem — **not** `500`. |
+| C16 | #25 | Staff (API) | `POST /api/shelters` with `status: ""`, then `PATCH /api/shelters/:id` with `status: ""`. | `400` on both, `"status must be 'active' or 'inactive'"` — an empty string is rejected, not silently treated as `'active'`. |
+
+## 23. Step 15 — data-changing helpers and cleanup (Phase 3)
+
+**Check-in/check-out tests (C1–C5) need no cleanup** if you check out exactly what you checked in — the shelter returns to its original `capacity_occupied`. If you leave it unbalanced, repeat the opposite action rather than editing the row directly, so the `Shelter_Capacity_Log` trail stays consistent with what actually happened.
+
+**Shelter-management tests (C9–C12) create or modify real rows.** Use a distinctive, reserved name prefix so cleanup only ever touches rows this runbook created — for example `Runbook test shelter` — the same idea as the reserved phone prefix in section 3, applied to shelters instead of requests.
+
+```sql
+-- Preview: exactly the shelters created for this runbook.
+SELECT shelter_id, name, status, capacity_total, capacity_occupied
+FROM Shelters
+WHERE name LIKE 'Runbook test shelter%';
+```
+
+```sql
+-- Safe default: deactivate rather than delete. A shelter_id may already be
+-- referenced by Supplies, Volunteer_Tasks, or Shelter_Capacity_Log once it
+-- has been used in testing, and deleting it would violate those foreign keys.
+UPDATE Shelters SET status = 'inactive'
+WHERE name LIKE 'Runbook test shelter%';
+```
+
+```sql
+-- Only delete if nothing references the shelter_id yet.
+DELETE FROM Shelters
+WHERE name LIKE 'Runbook test shelter%'
+  AND shelter_id NOT IN (SELECT DISTINCT shelter_id FROM Supplies)
+  AND shelter_id NOT IN (SELECT DISTINCT shelter_id FROM Volunteer_Tasks WHERE shelter_id IS NOT NULL)
+  AND shelter_id NOT IN (SELECT DISTINCT shelter_id FROM Shelter_Capacity_Log WHERE shelter_id IS NOT NULL);
+```
+
+If a test shelter you closed in C10/C4 should return to normal afterwards, reopen it rather than leaving it inactive:
+
+```sql
+UPDATE Shelters SET status = 'active'
+WHERE name LIKE 'Runbook test shelter%'
+  AND shelter_id = 123; -- replace with the specific shelter_id you are restoring
+```
+
+## 24. Phase 3 — rollback notes
+
+No change to section 13's conclusion: there are no down migrations, and the migration is additive/replace-only (a CHECK constraint, two function bodies, and a view with appended columns), so restoring the pre-migration backup and redeploying the previous builds remains the only reliable rollback.
+
+**One Phase-3-specific addition:** do not roll back the API or Coordinator Dashboard alone while leaving the Phase 3 migration applied. That recreates the exact "new schema, old API" condition in section 21 — the old check-in route would silently report success for check-ins it actually refused. If you roll back, roll back the database and the API together.
+
+## 25. Phase 3 — record sheet
+
+A separate sheet from section 15's, so Phase A/2 and Phase 3 results are not overwritten in the same cells.
+
+| Field | Value |
+| --- | --- |
+| Date and time (with timezone) | |
+| Migration 4 applied (`20261025_phase3_capacity_truth.sql`) | |
+| Render deploy commit | |
+| Coordinator Dashboard Vercel commit | |
+| Phase 3 results (C1–C16) | |
+| Synthetic/test shelter names or IDs created | |
+| Cleanup performed | |
+| Errors observed (browser console, Network, Render logs) | |
+
+## 26. Phase 4 — overview
 
 Phase 4 touches **the public-facing path only**: `find_nearest_shelters()`, `server/routes/aidRequests.js`'s `POST /` validation, `server/routes/auth.js`'s registration validation, a new `server/routes/events.js`, and the **Public Portal**'s `RequestForm.tsx` and `FindShelter.tsx`. It does not touch `Shelters` DDL, `Aid_Requests` DDL, `Request_Needs`, `Allocations`, or anything under `coordinator-dashboard/`.
 
@@ -318,13 +517,13 @@ Phase 4 touches **the public-facing path only**: `find_nearest_shelters()`, `ser
 | Vercel — Coordinator Dashboard redeploy | **No.** Phase 4's diff does not touch any file under `coordinator-dashboard/`. Redeploying it is harmless but unnecessary. |
 | New environment variable | **No.** Same as every earlier phase. |
 
-## 17. Phase 4 — prerequisites
+## 27. Phase 4 — prerequisites
 
 Confirm Phase A and Phase 2 via **section 6's preflight**, not repeated here. Phase 4 has **no functional dependency** on either — `find_nearest_shelters()`, the new validation in `aidRequests.js`/`auth.js`, and `events.js` all reference columns and tables that existed before Phase A or Phase 2 (`Shelters`, `Aid_Requests`, `Users`, `Disaster_Events`). You can apply this migration on a database that has only the original `schema.sql` baseline.
 
-**Data prerequisite — read this before testing the event selector (#74):** `GET /api/events` filters on `end_date IS NULL OR end_date >= CURRENT_DATE`. Checked against `database/seed.sql`: **none of the 15 seeded `Disaster_Events` rows set `end_date` at all** — every one, including the 1990 Andhra Pradesh & Tamil Nadu Cyclone and the other historical entries, has `end_date = NULL`. On the seeded demo database, `GET /api/events` will therefore return **all 15 events**, not just the current one or two. This is not a bug — the filter logic is reasonable given the schema — but it means T6 below will show a long dropdown with decades-old disasters in it, which is expected on this dataset, not a sign the filter is broken. If you want to demonstrate the "exactly one active event auto-selects" behaviour (Audit #42's nicer path), set `end_date` on all but one event first (see section 23's helper).
+**Data prerequisite — read this before testing the event selector (#74):** `GET /api/events` filters on `end_date IS NULL OR end_date >= CURRENT_DATE`. Checked against `database/seed.sql`: **none of the 15 seeded `Disaster_Events` rows set `end_date` at all** — every one, including the 1990 Andhra Pradesh & Tamil Nadu Cyclone and the other historical entries, has `end_date = NULL`. On the seeded demo database, `GET /api/events` will therefore return **all 15 events**, not just the current one or two. This is not a bug — the filter logic is reasonable given the schema — but it means T6 below will show a long dropdown with decades-old disasters in it, which is expected on this dataset, not a sign the filter is broken. If you want to demonstrate the "exactly one active event auto-selects" behaviour (Audit #42's nicer path), set `end_date` on all but one event first (see section 33's helper).
 
-## 18. Step 10 — Phase 4 preflight: what the database already has
+## 28. Step 10 — Phase 4 preflight: what the database already has
 
 `pg_get_function_result` on a `RETURNS TABLE` function returns its full column list as one string — the simplest way to check column count without naming each one individually:
 
@@ -336,15 +535,15 @@ Expected on a database that has not run the Phase 4 migration:
 ```
 TABLE(shelter_id integer, name character varying, distance_km numeric, available_space integer)
 ```
-After the migration, this grows to nine columns (`latitude`, `longitude`, `address`, `contact_number`, `has_space` appended) — see section 20's exact expected string.
+After the migration, this grows to nine columns (`latitude`, `longitude`, `address`, `contact_number`, `has_space` appended) — see section 30's exact expected string.
 
 **No constraint-violation check is needed for this migration.** Unlike Phase 3's `Shelters.status` constraint, this migration adds no `CHECK`, no `NOT NULL`, and no unique index — it only replaces a function body and widens its return columns. There is nothing existing data could violate.
 
-## 19. Step 11 — apply the Phase 4 migration
+## 29. Step 11 — apply the Phase 4 migration
 
 | # | File | What it changes | Needed? |
 | --- | --- | --- | --- |
-| 5 | `database/migrations/20261025_phase4_portal_trust.sql` | Drops and recreates `find_nearest_shelters(numeric,numeric,int,int)` (drops it first, since its `RETURNS TABLE` column list grows from four columns to nine — `CREATE OR REPLACE FUNCTION` cannot do that). The `WHERE` clause no longer excludes shelters that are too small for `req_space`; instead the result is ordered `has_space DESC, distance_km ASC`, so a full shelter still appears (flagged `has_space = false`) instead of disappearing. | **Yes** if section 18's query returned the four-column form. |
+| 5 | `database/migrations/20261025_phase4_portal_trust.sql` | Drops and recreates `find_nearest_shelters(numeric,numeric,int,int)` (drops it first, since its `RETURNS TABLE` column list grows from four columns to nine — `CREATE OR REPLACE FUNCTION` cannot do that). The `WHERE` clause no longer excludes shelters that are too small for `req_space`; instead the result is ordered `has_space DESC, distance_km ASC`, so a full shelter still appears (flagged `has_space = false`) instead of disappearing. | **Yes** if section 28's query returned the four-column form. |
 
 Like Phase 3's file, this is **not listed** in `database/migrations/README.md` (migrations 1–3 only) — a human should add it as migration 4 or 5 depending on whether Phase 3's migration is numbered first; this addendum does not edit that file.
 
@@ -354,7 +553,7 @@ Like Phase 3's file, this is **not listed** in `database/migrations/README.md` (
 - `get_priority_queue()` (Phase A/2) also calls `find_nearest_shelters()`, selecting only `nearby.name`, `nearby.distance_km`, `nearby.available_space` by position from a `LEFT JOIN LATERAL`. Those three columns keep the same name, type, and position in the new nine-column result, so `get_priority_queue()` is **unaffected** and needs no change — verified by reading its definition in `schema.sql`, not assumed.
 - No table, trigger, or view changes. No data backfill.
 
-## 20. Step 12 — verify the Phase 4 schema landed
+## 30. Step 12 — verify the Phase 4 schema landed
 
 ```sql
 SELECT pg_get_function_result('find_nearest_shelters(numeric,numeric,int,int)'::regprocedure);
@@ -375,7 +574,7 @@ ORDER BY has_space DESC;
 -- (has_space = false) still appears instead of being silently dropped.
 ```
 
-## 21. Step 13 — deploy order and hazards (Phase 4)
+## 31. Step 13 — deploy order and hazards (Phase 4)
 
 **If the new Public Portal deploys before the migration runs** (unmigrated database still returns the old four-column shape):
 
@@ -389,7 +588,7 @@ ORDER BY has_space DESC;
 
 **`server/routes/aidRequests.js`, `auth.js`, and the new `events.js` have no migration dependency at all** — their validation and the events query only touch columns that existed before this phase. Deploying the API ahead of or behind the migration is safe for those three.
 
-**Safest order:** apply the migration first, confirm with section 20, then deploy the API, then the Public Portal.
+**Safest order:** apply the migration first, confirm with section 30, then deploy the API, then the Public Portal.
 
 **Proof the new API build is live** (no mutation):
 
@@ -397,9 +596,9 @@ ORDER BY has_space DESC;
 curl -i https://<render-host>/api/events
 ```
 - Old API: Express's default 404 (`Cannot GET /api/events`) — the route did not exist.
-- New API: `200` with a JSON array (possibly all 15 seeded events — see section 17). A `200` here, with no token required, is the "it's live" signal.
+- New API: `200` with a JSON array (possibly all 15 seeded events — see section 27). A `200` here, with no token required, is the "it's live" signal.
 
-## 22. Step 14 — Phase 4 functional checks
+## 32. Step 14 — Phase 4 functional checks
 
 Run these against the deployed Public Portal unless marked "API". No staff account is needed — the public-facing routes are unauthenticated by design.
 
@@ -410,7 +609,7 @@ Run these against the deployed Public Portal unless marked "API". No staff accou
 | T3 | #68 | API: `POST /api/aid-requests` with `latitude` set but `longitude` omitted. | `400`, `"latitude and longitude must both be provided together"`. |
 | T4 | #68 | API: `POST /api/aid-requests` with `event_id: 999999` (or any ID that doesn't exist). | `400`, `"event_id does not reference an existing disaster event"` — **not** `500`. |
 | T5 | #69 | Submit a valid request on **Request help**. | The confirmation screen shows **"Your reference number is #&lt;id&gt;."** with the exact ID the API returned — not discarded. |
-| T6 | #74 | Open **Request help** and look at the event selector (only rendered when more than one event is returned). | Per section 17, expect **all 15 seeded events** listed on an unmodified demo database, most recent `start_date` first, including historical ones — this is correct behaviour given the data, not a bug. Selecting one and submitting sends that `event_id`; leaving "Not sure / general request" sends `event_id: null`. |
+| T6 | #74 | Open **Request help** and look at the event selector (only rendered when more than one event is returned). | Per section 27, expect **all 15 seeded events** listed on an unmodified demo database, most recent `start_date` first, including historical ones — this is correct behaviour given the data, not a bug. Selecting one and submitting sends that `event_id`; leaving "Not sure / general request" sends `event_id: null`. |
 | T7 | #38 | On **Find a shelter**, click **Pick on map** instead of **Use my location**. | A map appears centered on a default view; clicking anywhere on it immediately searches from that point — no GPS permission prompt at all. |
 | T8 | #38 | On **Find a shelter**, click **Browse all shelters**. | A full list of shelters appears with occupied/total counts, with no location requested and no distance shown. |
 | T9 | #39 | On **Find a shelter**, set **People in your household** to a number larger than any single shelter's free space, then search by location. | Results still return (not empty); each result reads **"Full · no space"** if `available_space` is less than the household size for that shelter, per the `has_space` flag — not simply omitted. |
@@ -418,11 +617,11 @@ Run these against the deployed Public Portal unless marked "API". No staff accou
 | T11 | #41 | Search by location where the nearest shelter is full. | That shelter still appears in the results list (not hidden), labelled **"Full"**, with address and a **Call**/**Directions** link if `contact_number`/coordinates are present — not an empty state. |
 | T12 | regression | On the Coordinator Dashboard, open **Priority queue** or **Allocation** as staff. | Unaffected — Phase 4 touches no coordinator-dashboard code; behaves exactly as sections 10/11 describe. |
 
-## 23. Step 15 — data-changing helpers and cleanup (Phase 4)
+## 33. Step 15 — data-changing helpers and cleanup (Phase 4)
 
 **Most Phase 4 checks are read-only** (T6–T11 only read data) or create a request that behaves like any other synthetic request from section 11.1 — use the same reserved phone prefix, and the same cleanup in section 12 removes them (it already deletes `Request_Needs` and `Allocations` rows for the prefix before deleting the request itself, which also covers the needs this phase's requests may carry).
 
-**Optional — to demonstrate the single-active-event auto-select path for T6** (section 17), temporarily close all but one event:
+**Optional — to demonstrate the single-active-event auto-select path for T6** (section 27), temporarily close all but one event:
 
 ```sql
 -- Preview first: confirm exactly which events you are about to close.
@@ -445,13 +644,13 @@ WHERE end_date = CURRENT_DATE - INTERVAL '1 day' AND event_id <> 14;
 
 Narrow the second statement's date comparison if you ran the close step on a different day than the restore.
 
-## 24. Phase 4 — rollback notes
+## 34. Phase 4 — rollback notes
 
 No change to section 13's conclusion. This migration is replace-only (one function body, recreated from scratch after an explicit drop) — restoring the pre-migration backup and redeploying the previous builds remains the only reliable rollback, and there is nothing additive to partially undo.
 
-**No Phase-4-specific hazard on rollback**, unlike Phase 3: rolling back only the Public Portal while leaving this migration applied is safe — the old frontend simply ignores the five new columns. Rolling back only the API is also safe for the same reason. The one direction that is not safe is already covered in section 21: deploying the **new** Public Portal before the migration runs.
+**No Phase-4-specific hazard on rollback**, unlike Phase 3: rolling back only the Public Portal while leaving this migration applied is safe — the old frontend simply ignores the five new columns. Rolling back only the API is also safe for the same reason. The one direction that is not safe is already covered in section 31: deploying the **new** Public Portal before the migration runs.
 
-## 25. Phase 4 — record sheet
+## 35. Phase 4 — record sheet
 
 A separate sheet from sections 15 and 25 (Phase 3), so results are not overwritten in the same cells.
 
