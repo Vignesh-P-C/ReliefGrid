@@ -521,7 +521,9 @@ Phase 4 touches **the public-facing path only**: `find_nearest_shelters()`, `ser
 
 Confirm Phase A and Phase 2 via **section 6's preflight**, not repeated here. Phase 4 has **no functional dependency** on either — `find_nearest_shelters()`, the new validation in `aidRequests.js`/`auth.js`, and `events.js` all reference columns and tables that existed before Phase A or Phase 2 (`Shelters`, `Aid_Requests`, `Users`, `Disaster_Events`). You can apply this migration on a database that has only the original `schema.sql` baseline.
 
-**Data prerequisite — read this before testing the event selector (#74):** `GET /api/events` filters on `end_date IS NULL OR end_date >= CURRENT_DATE`. Checked against `database/seed.sql`: **none of the 15 seeded `Disaster_Events` rows set `end_date` at all** — every one, including the 1990 Andhra Pradesh & Tamil Nadu Cyclone and the other historical entries, has `end_date = NULL`. On the seeded demo database, `GET /api/events` will therefore return **all 15 events**, not just the current one or two. This is not a bug — the filter logic is reasonable given the schema — but it means T6 below will show a long dropdown with decades-old disasters in it, which is expected on this dataset, not a sign the filter is broken. If you want to demonstrate the "exactly one active event auto-selects" behaviour (Audit #42's nicer path), set `end_date` on all but one event first (see section 33's helper).
+**Data prerequisite — the event selector (#74):** `GET /api/events` filters on `end_date IS NULL OR end_date >= CURRENT_DATE`. `database/seed.sql` now sets an approximate `end_date` two months after `start_date` on every historical event, leaving only the two 2026 entries open — but `seed.sql` only runs on a fresh install, and **the already-seeded Supabase database still has `end_date = NULL` on all 15 rows**. Run the one-step update in section 33 before testing T6, otherwise the dropdown lists every disaster back to 1990.
+
+**Phase 3 dependency:** T8's browse-all list reads `is_active` from `GET /api/shelters`, which only exists once the Phase 3 migration (sections 16–25) is applied. Apply Phase 3 first. Without it the portal's filter degrades to showing every shelter rather than hiding any — nothing breaks, but closed shelters cannot be excluded.
 
 ## 28. Step 10 — Phase 4 preflight: what the database already has
 
@@ -609,7 +611,8 @@ Run these against the deployed Public Portal unless marked "API". No staff accou
 | T3 | #68 | API: `POST /api/aid-requests` with `latitude` set but `longitude` omitted. | `400`, `"latitude and longitude must both be provided together"`. |
 | T4 | #68 | API: `POST /api/aid-requests` with `event_id: 999999` (or any ID that doesn't exist). | `400`, `"event_id does not reference an existing disaster event"` — **not** `500`. |
 | T5 | #69 | Submit a valid request on **Request help**. | The confirmation screen shows **"Your reference number is #&lt;id&gt;."** with the exact ID the API returned — not discarded. |
-| T6 | #74 | Open **Request help** and look at the event selector (only rendered when more than one event is returned). | Per section 27, expect **all 15 seeded events** listed on an unmodified demo database, most recent `start_date` first, including historical ones — this is correct behaviour given the data, not a bug. Selecting one and submitting sends that `event_id`; leaving "Not sure / general request" sends `event_id: null`. |
+| T6 | #74 | Open **Request help** and look at the event selector (only rendered when more than one event is returned). | After section 33's update, only the events that have no `end_date` or a future one are listed — on the seeded data, the two 2026 entries, most recent first. If you skip that update, all 15 appear back to 1990; that is the stale `end_date` data, not a filter bug. Selecting one sends that `event_id`; leaving "Not sure / general request" sends `event_id: null`. |
+| T7 | #38 | In **Find a shelter**, press **Browse all shelters**. | Only shelters that are not marked **Inactive** are listed. A shelter you closed in section 22 (`ShelterBoard`) is absent here — the public list and the coordinator board must not disagree about whether a shelter is open. |
 | T7 | #38 | On **Find a shelter**, click **Pick on map** instead of **Use my location**. | A map appears centered on a default view; clicking anywhere on it immediately searches from that point — no GPS permission prompt at all. |
 | T8 | #38 | On **Find a shelter**, click **Browse all shelters**. | A full list of shelters appears with occupied/total counts, with no location requested and no distance shown. |
 | T9 | #39 | On **Find a shelter**, set **People in your household** to a number larger than any single shelter's free space, then search by location. | Results still return (not empty); each result reads **"Full · no space"** if `available_space` is less than the household size for that shelter, per the `has_space` flag — not simply omitted. |
@@ -621,28 +624,24 @@ Run these against the deployed Public Portal unless marked "API". No staff accou
 
 **Most Phase 4 checks are read-only** (T6–T11 only read data) or create a request that behaves like any other synthetic request from section 11.1 — use the same reserved phone prefix, and the same cleanup in section 12 removes them (it already deletes `Request_Needs` and `Allocations` rows for the prefix before deleting the request itself, which also covers the needs this phase's requests may carry).
 
-**Optional — to demonstrate the single-active-event auto-select path for T6** (section 27), temporarily close all but one event:
+**Required before T6 — close the historical events on the already-seeded database.** Two months after `start_date` is the same approximation `seed.sql` now uses; the two 2026 entries stay open.
 
 ```sql
--- Preview first: confirm exactly which events you are about to close.
-SELECT event_id, name, start_date, end_date FROM Disaster_Events WHERE end_date IS NULL;
+-- Preview: exactly the rows this will close.
+SELECT event_id, name, start_date
+FROM Disaster_Events
+WHERE end_date IS NULL AND start_date < DATE '2026-01-01';
 ```
 
 ```sql
--- Close every event except the one you want to demo (replace 14 with its event_id).
 UPDATE Disaster_Events
-SET end_date = CURRENT_DATE - INTERVAL '1 day'
-WHERE end_date IS NULL AND event_id <> 14;
+SET end_date = start_date + INTERVAL '2 months'
+WHERE end_date IS NULL AND start_date < DATE '2026-01-01';
 ```
 
-```sql
--- Restore afterwards — reopen exactly the rows this just closed.
-UPDATE Disaster_Events
-SET end_date = NULL
-WHERE end_date = CURRENT_DATE - INTERVAL '1 day' AND event_id <> 14;
-```
+Idempotent — re-running matches nothing once every historical event has an `end_date`. To undo it: `UPDATE Disaster_Events SET end_date = NULL WHERE start_date < DATE '2026-01-01';`.
 
-Narrow the second statement's date comparison if you ran the close step on a different day than the restore.
+**To see the single-active-event auto-select path**, temporarily close one of the two remaining 2026 rows as well (`UPDATE Disaster_Events SET end_date = CURRENT_DATE - INTERVAL '1 day' WHERE event_id = <id>;`), check that the selector disappears and the request is submitted with that event already attached, then set its `end_date` back to `NULL`.
 
 ## 34. Phase 4 — rollback notes
 

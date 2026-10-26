@@ -47,7 +47,8 @@ async function loadFixtures() {
   await client.query(
     `INSERT INTO Shelters (shelter_id, event_id, name, address, latitude, longitude, capacity_total, capacity_occupied, contact_number, status) VALUES
        (1, 1, 'Shelter With Space', '1 Open Rd', 10.5, 76.5, 10, 2, '1111111111', 'active'),
-       (2, 1, 'Full Shelter',       '2 Full Rd', 10.01, 76.01, 2, 2, '2222222222', 'active')`
+       (2, 1, 'Full Shelter',       '2 Full Rd', 10.01, 76.01, 2, 2, '2222222222', 'active'),
+       (3, 1, 'Closed Shelter',     '3 Shut Rd', 10.2, 76.2, 4, 1, '3333333333', 'inactive')`
   );
 
   const adminHash = await bcrypt.hash('AdminPass123', 10);
@@ -59,6 +60,12 @@ async function loadFixtures() {
   await client.query("SELECT setval('disaster_events_event_id_seq', (SELECT MAX(event_id) FROM Disaster_Events))");
   await client.query("SELECT setval('shelters_shelter_id_seq', (SELECT MAX(shelter_id) FROM Shelters))");
   await client.query("SELECT setval('users_user_id_seq', (SELECT MAX(user_id) FROM Users))");
+
+  // One supply category so the needs[] round-trip below has something real to
+  // point at. categories are seeded by migration 20261026 in production, not by
+  // schema.sql, so the disposable database has none.
+  await client.query("INSERT INTO Supply_Categories (category_id, name) VALUES (1, 'Water')");
+  await client.query("SELECT setval('supply_categories_category_id_seq', (SELECT MAX(category_id) FROM Supply_Categories))");
 
   await client.end();
 }
@@ -173,6 +180,44 @@ async function main() {
     const bigHousehold = await req('GET', '/api/shelters/nearest?lat=10.0&lon=76.0&people=100');
     check('a household bigger than any shelter still gets results (not empty)', Array.isArray(bigHousehold.data) && bigHousehold.data.length === 2, bigHousehold.data);
     check('nothing has space for a household of 100', bigHousehold.data.every((s) => s.has_space === false), bigHousehold.data);
+  }
+
+  console.log('\n-- Audit #22/#38: the public shelter list carries the lifecycle flag --');
+  {
+    const { status, data } = await req('GET', '/api/shelters');
+    check('GET /shelters returns 200', status === 200, status);
+
+    const open = data.find((s) => s.shelter_id === 1);
+    const shut = data.find((s) => s.shelter_id === 3);
+    check('an active shelter reports is_active = true', open?.is_active === true, open);
+    check('a closed shelter reports is_active = false', shut?.is_active === false, shut);
+    check(
+      'the portal filter hides only the closed shelter',
+      data.filter((s) => s.is_active !== false).every((s) => s.shelter_id !== 3),
+      data.map((s) => ({ id: s.shelter_id, active: s.is_active }))
+    );
+  }
+
+  console.log('\n-- The merged submission handler still records needs --');
+  {
+    const withNeeds = await req('POST', '/api/aid-requests', null, {
+      ...validRequest(),
+      needs: [{ category_id: 1, quantity_needed: 4 }],
+    });
+    check('submission with needs[] returns 201', withNeeds.status === 201, withNeeds.status);
+    check('exactly one need is echoed back', Array.isArray(withNeeds.data?.needs) && withNeeds.data.needs.length === 1, withNeeds.data?.needs);
+    check(
+      'the need keeps its category and quantity',
+      withNeeds.data?.needs?.[0]?.category_id === 1 && withNeeds.data?.needs?.[0]?.quantity_needed === 4,
+      withNeeds.data?.needs?.[0]
+    );
+
+    const withoutNeeds = await req('POST', '/api/aid-requests', null, { ...validRequest(), request_type: 'medical' });
+    check(
+      'a non-shelter request with no needs records an estimate',
+      withoutNeeds.status === 201 && withoutNeeds.data?.needs?.[0]?.is_estimate === true,
+      withoutNeeds.data?.needs
+    );
   }
 
   console.log(`\nSummary: ${passed} passed, ${failed} failed.`);

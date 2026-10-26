@@ -22,6 +22,9 @@ export interface ShelterListing {
   capacity_occupied: number;
   occupancy_pct: number;
   status: 'full' | 'near-full' | 'available';
+  // Added to Shelter_Live_Status by the Phase 3 migration. The public list
+  // filters on it so a closed shelter is never offered as an option.
+  is_active: boolean;
 }
 
 export interface DisasterEvent {

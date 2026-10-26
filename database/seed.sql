@@ -44,6 +44,15 @@ INSERT INTO Disaster_Events (name, type, region, severity, start_date) VALUES
   ('Cauvery Flood 2026 (fabricated)', 'flood', 'Tamil Nadu', 4, '2026-08-01'),
   ('Nilgiris Landslide 2026 (fabricated)', 'landslide', 'Tamil Nadu', 3, '2026-08-10');
 
+-- GET /api/events treats an event as current when end_date is NULL or in the
+-- future. Only the two fabricated 2026 events are meant to be current: the
+-- historical rows have no reliable end date in the source data, so approximate
+-- each one as ending two months after it began. Without this the public
+-- portal's "which disaster?" selector offers the 1990 cyclone as an option.
+UPDATE Disaster_Events
+SET end_date = start_date + INTERVAL '2 months'
+WHERE end_date IS NULL AND start_date < DATE '2026-01-01';
+
 INSERT INTO Users (name, phone, email, password_hash, role) VALUES
   ('Priya Raman', '9000000001', 'priya@reliefgrid.org', 'REPLACE_WITH_BCRYPT_HASH', 'Admin'),
   ('Arjun Nair', '9000000002', 'arjun@reliefgrid.org', 'REPLACE_WITH_BCRYPT_HASH', 'ShelterCoordinator'),

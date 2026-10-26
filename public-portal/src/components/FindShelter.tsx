@@ -95,7 +95,11 @@ export default function FindShelter() {
     setCoords(null);
     try {
       const response = await api.get<ShelterListing[]>('/shelters');
-      setAllShelters(response.data);
+      // A closed shelter must never appear in a public "all shelters" list.
+      // `!== false` rather than `=== true` so an API running without the Phase 3
+      // migration (no is_active field at all) still lists every shelter instead
+      // of silently showing an empty list.
+      setAllShelters(response.data.filter((shelter) => shelter.is_active !== false));
       setHasSearched(true);
     } catch (requestError) {
       console.error('Failed to fetch shelters', requestError);
