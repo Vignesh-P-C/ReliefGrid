@@ -48,10 +48,22 @@ Migrations 3, 4 and 5 are idempotent. Migration 3 uses `IF NOT EXISTS` for
 tables, columns and indexes, a guarded `DO` block for the status constraint and
 `CREATE OR REPLACE` for functions; migrations 4 and 5 guard their constraints
 the same way and drop a function before recreating it when its return columns
-change. Re-running any of those three is safe. Migrations 1 and 2 are **not**
-idempotent in that sense — migration 2's `CREATE FUNCTION` will fail if run
-twice — so run those once per environment, and read the error before retrying a
-paste that reported one.
+change. Re-running any of those three is safe. Migrations 1 and 2 are **not**, and both
+fail in a way that depends on how far the later files have got:
+
+- Migration 1 re-runs cleanly until migration 3 replaces the view, after which
+  it fails with *cannot drop columns from view* — `CREATE OR REPLACE VIEW` can
+  add columns, not remove them. Nothing is changed by the failure.
+- Migration 2 re-runs cleanly until migration 5 widens
+  `find_nearest_shelters()`, after which it fails with *cannot change return
+  type of existing function*. Because the same file drops
+  `get_priority_queue()` a few statements earlier, that failure leaves the queue
+  function **dropped** in a client that stops at the first error (`psql`), or
+  silently reverted to its Phase A shape in one that carries on (the Supabase
+  editor). Re-applying migration 3 repairs either state.
+
+Apply 1 and 2 once each, in order. If one of them reports an error, re-apply
+migration 3 before moving on, and read the message rather than pasting again.
 
 ## Deployment order
 

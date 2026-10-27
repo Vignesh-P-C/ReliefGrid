@@ -1,10 +1,314 @@
-# ReliefGrid — Deployed Verification Runbook (Phase A + Phase 2)
+# ReliefGrid — Supabase Migration and Deployed Verification Runbook
+
+**Covers:** Phase A (triage), Phase 2 (needs and partial fulfilment), Phase 3 (capacity truth), Phase 4 (portal trust) — four phases, five migration files, one database.
+
+**Written for:** whoever runs it next. Part 0 assumes you have not worked on these phases and do not know the history — it gives you the state of the database today, the exact order to run things, what each file does, and what "correct" looks like after each step. Sections 1–35 are the detailed per-phase reference behind it.
 
 **Purpose:** verify Phase A (triage) and Phase 2 (request needs and partial fulfilment) against the deployed Public Portal, Coordinator Dashboard, Render API and Supabase database. No local server or local frontend is needed.
 
 **Scope:** this runbook starts from a deployed stack whose database has **not yet been migrated**. It tells you what to run in Supabase, what to deploy, and what to click afterwards. It replaces the earlier Phase A–only document.
 
-**Not a substitute for:** the local checks in `server/tests/` (`npm run test:allocation` covers the allocation contract against any disposable PostgreSQL). Those prove the database and API contract; this runbook proves the deployed wiring, permissions and UI behaviour.
+**Not a substitute for:** the local checks in `server/tests/` (`npm run test:allocation` covers the allocation contract against any disposable PostgreSQL; `npm run test:phase3` and `npm run test:phase4` cover the later phases). Those prove the database and API contract; this runbook proves the deployed wiring, permissions and UI behaviour.
+
+---
+
+## 0. Start here — where the database stands, and the order to fix it
+
+**Read this part first, then run it top to bottom.** Sections 1–35 below hold the detail for each phase; Part 0 is the spine: current state, the order, one section per migration file, what to verify after each, what breaks if something is skipped, and what to do when a symptom appears.
+
+### 0.1 Where Supabase actually stands today
+
+**No migration has been applied to the hosted Supabase database.** Phase A, Phase 2 and Phase 3 are merged to `main` and deployed; Phase 4 is in review. The database is still on the original `schema.sql` baseline, so **the deployed stack is currently ahead of its database**.
+
+That single fact explains every current oddity. Expect to see these until the migrations land — none of them is a code bug:
+
+| What you see now | What it is |
+| --- | --- |
+| `503` with "The database is missing a required migration. Apply database/migrations in order, then retry." on `GET /api/aid-requests/queue`, `GET /api/supplies/inventory`, `GET /api/supplies/allocations` | Those routes read columns, tables and views that migrations 2, 3 and 4 create. The API answers `503` on purpose rather than a generic `500` — see `describeDatabaseError` in `server/lib/databaseErrors.js`. |
+| Check-in answers `500` `"Check-in failed"` | Phase 3's check-in route compares the function's result to the string `'ok'`. On an unmigrated database `checkin_to_shelter()` still returns `BOOLEAN`, which never equals `'ok'`, so every check-in falls through to the generic error. Full explanation in section 21. |
+| The Coordinator Dashboard's **People sheltered** and **Open spaces** cards read `0` while real people are checked in | Phase 3's board filters its totals on `is_active`, which the unmigrated `Shelter_Live_Status` view does not have — so every shelter is excluded from the totals. Rows in the table still render. Section 21. |
+| The portal's **Which disaster is this related to?** lists all 15 seeded disasters back to 1990 | Every `Disaster_Events` row still has `end_date = NULL`, and `GET /api/events` filters on it. This is stale data, not a filter bug — step 0.6.3 fixes it. |
+| The portal shows every shelter, including closed ones | `is_active` is missing from the unmigrated view. The portal deliberately degrades to showing everything rather than hiding everything. |
+
+Two consequences worth stating plainly:
+
+1. **Do not spend time debugging these.** Apply the migrations, then re-check.
+2. **Until then, the deployed behaviour is misleading, not merely incomplete.** The capacity cards reading `0` and check-in silently failing are worse than an outage because they look like real numbers. Treat the app as untrustworthy until section 0.4's list is complete.
+
+### 0.2 Access you need before starting
+
+| Access | Used for |
+| --- | --- |
+| Supabase project → SQL Editor, and the ability to take a backup | Every step below |
+| Render → service `reliefgrid-api` → Environment and Events | Step 0.4.2 (does the API point at *this* project?) and confirming deploys |
+| Vercel → `relief-grid-publicportal` and `relief-grid-coordinator-dashboard` | Confirming builds and `VITE_API_URL` |
+| A staff login with role `Admin` or `ShelterCoordinator` | The coordinator checks (A1–A7, P1–P11, C1–C16) |
+| This repository | The five migration files, and the cleanup queries |
+
+A `Volunteer` login is useful too, for the permission checks that expect `403` and blanked contact details.
+
+**Never paste `DATABASE_URL`, `JWT_SECRET`, a password, a bcrypt hash or a token into chat, a screenshot, an issue or a commit.** See section 3.
+
+### 0.3 How to run SQL in the Supabase editor without making things worse
+
+- **One file per query.** The Supabase editor is not `psql -v ON_ERROR_STOP=1`: it does not stop the file at the first failing statement, and if you paste two files into one query and the second fails, the first has already been applied. You then have a half-applied pair to reason about, which is the state this runbook spends the most effort avoiding.
+- **"Success. No rows returned." is the correct result for a DDL file.** It does not mean nothing happened.
+- **Read the `NOTICE`s.** Migrations 4 and 5 raise them (for example, the count of `Shelters.status` values normalised to `inactive`). They are informational, but they tell you what changed beyond the DDL.
+- **Verify after every file** with that migration's query in 0.5, before starting the next one.
+- **If a file reports an error, stop.** Do not run the next file over a half-migrated schema. Read the error, and if it is not something you can explain, restore the backup (section 13) and start that file again.
+- **Take the backup before anything else** (step 0.4.1). There are no down migrations (section 13); the backup is the rollback.
+
+### 0.4 The order — do not reorder, and do not skip the verification rows
+
+| # | Action | Where | Expected result |
+| --- | --- | --- | --- |
+| 1 | Take a backup | Supabase → Database → Backups | A restorable snapshot exists |
+| 2 | Confirm the API points at *this* Supabase project | Render → `reliefgrid-api` → Environment (section 5) | Host matches the project reference |
+| 3 | Run the one-shot probe | SQL Editor, query in 0.5.0 | Six `false`s today |
+| 4 | Fill `Supply_Categories` if it is empty | Section 6 | 4 rows |
+| 5 | Apply migration **1** (or skip it — it is redundant, 0.5.1) | 0.5.1 | Success |
+| 6 | Apply migration **2** | 0.5.2 | Success — **run once** |
+| 7 | Apply migration **3** | 0.5.3 | Success; backfill check returns `0` |
+| 8 | Apply migration **4** | 0.5.4 | Success; check-in returns a reason |
+| 9 | Apply migration **5** | 0.5.5 | Success; the function returns 9 columns |
+| 10 | Close the historical disaster events | Section 33, repeated in 0.6.3 | `open_events` = `2` |
+| 11 | Confirm the deployed code is current | Render Events + both Vercel projects (section 9) | New commit `Live` / `Ready` |
+| 12 | Phase A functional checks **A1–A7** | Section 10 | All pass |
+| 13 | Phase 2 functional checks **P1–P11** | Section 11 | All pass |
+| 14 | Phase 3 functional checks **C1–C16** | Section 22 | All pass |
+| 15 | Phase 4 functional checks **T1–T12** | Section 32 | All pass |
+| 16 | Cleanup | Sections 12, 23, 33 | Synthetic rows gone, stock restored |
+
+**Two dependencies to know about before you plan the day:**
+
+- **Phase 4's checks (T1–T12) need Phase 4's code deployed.** That means the Phase 4 pull request merged and the Public Portal rebuilt from `main`. Against the current deployment you will not see the new phone-field behaviour, the event selector, the closed-shelter filter or the corrected space labels, no matter what the database says. Phases A, 2 and 3 are already on `main`.
+- **Phase 3's checks (C1–C16) need the Coordinator Dashboard build from `main`**, which already contains Phase 3.
+
+Steps 5–9 are what makes the app work again; steps 12–15 are what proves it. If you only have time for part of this, do 1–10.
+
+### 0.5 One section per migration file
+
+#### 0.5.0 The one-shot probe (step 3)
+
+Read-only. This tells you which of the five migrations are already applied and whether the two data prerequisites are met. Every function check is written so it cannot error on a database where the object does not exist yet.
+
+```sql
+SELECT
+  -- 1: the shortage view gained supply_id
+  COALESCE((SELECT count(*) FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'critical_supply_shortage'
+               AND column_name = 'supply_id') = 1, false)                    AS m1_shortage_supply_id,
+
+  -- 2: Phase A triage columns on Aid_Requests
+  COALESCE((SELECT count(*) FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'aid_requests'
+               AND column_name = 'reviewed_priority') = 1, false)            AS m2_triage_columns,
+
+  -- 3: Phase 2 needs table plus the allocation-to-need link
+  COALESCE(to_regclass('public.request_needs') IS NOT NULL
+     AND (SELECT count(*) FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'allocations'
+             AND column_name = 'need_id') = 1, false)                       AS m3_request_needs,
+
+  -- 4: Phase 3 — the view flag and check-in returning a reason, not a boolean
+  COALESCE((SELECT count(*) FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'shelter_live_status'
+               AND column_name = 'is_active') = 1, false)                    AS m4_view_is_active,
+  COALESCE((SELECT pg_get_function_result(p.oid) = 'character varying'
+              FROM pg_proc p
+             WHERE p.oid = to_regprocedure('checkin_to_shelter(int,int)')), false) AS m4_checkin_returns_reason,
+
+  -- 5: Phase 4 — the nearest-shelter function's nine-column shape
+  COALESCE((SELECT pg_get_function_result(p.oid) LIKE '%has_space%'
+              FROM pg_proc p
+             WHERE p.oid = to_regprocedure('find_nearest_shelters(numeric,numeric,int,int)')), false) AS m5_nearest_has_space,
+
+  -- Data prerequisites, not migration state
+  (SELECT count(*) FROM Supply_Categories)                               AS supply_categories,
+  (SELECT count(*) FROM Supplies)                                        AS supply_items,
+  (SELECT count(*) FROM Disaster_Events
+    WHERE end_date IS NULL OR end_date >= CURRENT_DATE)                  AS open_events;
+```
+
+Expected **today** on the hosted database: `m2_triage_columns`, `m3_request_needs`, `m4_view_is_active`, `m4_checkin_returns_reason` and `m5_nearest_has_space` all `false` — and **`m1_shortage_supply_id` probably `true` already**, because the baseline `schema.sql` this database was built from already gave that view a `supply_id`. So that column cannot tell you whether migration 1 was applied, and it does not matter (0.5.1). `supply_categories` = `4` (any non-zero value is fine), `supply_items` = `5`, `open_events` = `15`. Both the "before" and "after" values here were reproduced against a database rebuilt from the pre-Phase-A `schema.sql`.
+
+After completing steps 5–10: the six `m*` columns all `true` and `open_events` = `2`.
+
+If a column reports `NULL` rather than `false`, the `COALESCE` was removed or edited — treat `NULL` as "unknown" and investigate before running a migration.
+
+#### 0.5.1 Migration 1 — `20261016_add_supply_id_to_shortage_view.sql` (6 lines)
+
+| | |
+| --- | --- |
+| Phase | Pre-Phase A |
+| What it does | Recreates the `Critical_Supply_Shortage` view with `supply_id`, so the coordinator's allocation action can identify the stock row instead of guessing from item name and shelter. |
+| Touches | One view. No tables, no data. |
+| Already the case? | **Probably yes.** The pre-Phase-A `schema.sql` this database was created from already defines `Critical_Supply_Shortage` with `supply_id` — verified by loading that file and running the 0.5.0 probe, which reported `m1_shortage_supply_id = true` before any migration had run. |
+| Idempotent | **Only before migration 3.** Once migration 3 has replaced the view with its wider column list, re-running this file fails with *cannot drop columns from view* — `CREATE OR REPLACE VIEW` can add columns, it cannot remove them. That failure is harmless and changes nothing (verified: the view keeps migration 3's nine columns), but it is noise you do not need. |
+| Safe to skip? | **Yes, always.** Migration 3 recreates the same view with `supply_id` plus `unit` and category columns, so this file is a narrower earlier version of the same thing — and the baseline already produces that view, so on this database it is redundant whether or not it has been run before. Running it first is fine; running it again afterwards is not. |
+| Verify | `SELECT string_agg(attname, ',' ORDER BY attname) FROM pg_attribute WHERE attrelid = 'critical_supply_shortage'::regclass AND attnum > 0;` — the list must contain `supply_id`. |
+| If it fails | *cannot drop columns from view* means migration 3 has already run — expected, harmless, skip this file. Any other error, such as a missing `Supplies` or `Shelters`, means the database is not ReliefGrid's: stop and check step 2. |
+
+#### 0.5.2 Migration 2 — `20261025_add_aid_request_triage.sql` (110 lines) — **run once**
+
+| | |
+| --- | --- |
+| Phase | A — triage |
+| What it does | Adds `reviewed_priority`, `reviewed_by`, `reviewed_at` to `Aid_Requests` with a constraint that all three are set together or all three are null; replaces `find_nearest_shelters()` with the four-column version that still filters out shelters without room; replaces `get_priority_queue()` with the version that ages waiting requests, exposes request type and phone, and attaches the nearest shelter. |
+| Touches | `Aid_Requests` (three columns + one constraint), two functions. No data changes. |
+| Idempotent | **No.** Read the next row. |
+| Why not | It runs `DROP FUNCTION IF EXISTS get_priority_queue();` and then `CREATE OR REPLACE FUNCTION find_nearest_shelters(...)` at the four-column shape. Once migration 5 has widened that function to nine columns, that statement fails with *cannot change return type of existing function* — reproduced on a fully migrated database. What happens next depends on the client, and **both outcomes are bad**: with `ON_ERROR_STOP` set (psql, the README's batch command) the file stops right there, leaving `get_priority_queue()` **dropped** — the coordinator's queue goes down until you re-apply migration 3. Without it (the Supabase editor carries on past a failing statement) the last statement still runs and recreates `get_priority_queue()` at the **Phase A** shape, so Phase 2's queue fields (`status`, `needs`) silently disappear. Both were reproduced. Fix in either case: re-apply migration 3, which is idempotent and restores the Phase 2 queue — also reproduced. |
+| Verify | `SELECT pg_get_function_result('get_priority_queue()'::regprocedure);` must list `reviewed_priority`, `effective_priority` and `nearest_shelter_name` (section 8, query 1). |
+| If it fails | A second run is the most likely cause. Check 0.5.0: if `m2_triage_columns` is already `true`, this migration is applied, so skip it — and because this file drops `get_priority_queue()` *before* the statement that fails, re-apply migration 3 afterwards (0.5.3 repairs this: verified). |
+
+#### 0.5.3 Migration 3 — `20261026_add_request_needs_and_partial_fulfilment.sql` (391 lines)
+
+| | |
+| --- | --- |
+| Phase | 2 — needs and partial fulfilment |
+| What it does | Creates `Request_Needs`; adds `need_id` and `allocated_by` to `Allocations`; adds the `Aid_Requests.status` constraint after normalising unexpected values; rebuilds `Critical_Supply_Shortage` with `supply_id`, `unit` and category; replaces `allocate_supply()` with the need-aware five-argument version (**dropping** the old three-argument one) and replaces `get_priority_queue()`; backfills a need for every open, non-shelter request. |
+| Touches | Two tables plus one new one, one view, two functions, and existing open requests (the backfill). |
+| Idempotent | Yes — `IF NOT EXISTS`, a guarded constraint block, `CREATE OR REPLACE`. |
+| Prerequisite | `Supply_Categories` must have rows, or the backfill cannot name any need. Section 6 has the insert. |
+| Backfill to expect | On the seeded database this creates **5** `Request_Needs` rows, 2 of them estimates. Your counts will differ — what matters is section 8's fourth query returning `0` afterwards, and it did on both a fresh load and an upgraded database. |
+| Repairs a mis-run migration 2 | Re-applying this file is the fix. It is idempotent, and it restores `get_priority_queue()` whether migration 2's re-run left it dropped or reverted to the Phase A shape — both reproduced. |
+| Verify | Section 8 — all four queries, including the backfill check which **must return `0`**. |
+| Deploy hazard | This file drops `allocate_supply(int,int,int)`, the signature the Phase-1 API calls. The migration and the API deploy must land within minutes of each other (section 9). On the hosted stack the API is already the new one, so applying the migration *closes* that window rather than opening it. |
+
+#### 0.5.4 Migration 4 — `20261025_phase3_capacity_truth.sql` (120 lines)
+
+| | |
+| --- | --- |
+| Phase | 3 — capacity truth |
+| What it does | Normalises any `Shelters.status` outside `active`/`inactive` to `'inactive'` (fail closed, with a `NOTICE` counting the rows) and adds the `shelters_status_valid` CHECK; replaces `checkin_to_shelter(int,int)` so it returns `'ok'` / `'not_found'` / `'inactive'` / `'full'` / `'invalid_quantity'` instead of a boolean; adds `checkout_from_shelter(int,int)`; rebuilds `Shelter_Live_Status` with `event_id`, `event_name` and `is_active` appended. |
+| Touches | `Shelters` (one constraint, and possibly the status values), three functions/views. |
+| Idempotent | Yes — guarded constraint block, `DROP FUNCTION IF EXISTS` before the recreate, `CREATE OR REPLACE` elsewhere. |
+| Data effect to expect | On the seeded demo database nothing is normalised (every row is already `active`), and the `NOTICE` is silent. If a `NOTICE` reports rows, those shelters come back **closed** — reopen any that are genuinely operating (section 18). |
+| Verify | Section 20 — four queries. `checkin_to_shelter` must report `character varying`, never `boolean`. |
+| Deploy hazard | The loudest of the four. A half-applied pair makes check-in fail with `500` (new API, old function) or silently report success for refusals (old API, new function). Section 21. |
+
+#### 0.5.5 Migration 5 — `20261025_phase4_portal_trust.sql` (35 lines)
+
+| | |
+| --- | --- |
+| Phase | 4 — portal trust |
+| What it does | Drops and recreates `find_nearest_shelters(numeric,numeric,int,int)` so household size **orders** the results instead of filtering them, and so each row carries `latitude`, `longitude`, `address`, `contact_number` and `has_space`. A shelter too small for the household still appears, flagged `has_space = false`. |
+| Touches | One function. No tables, no data. |
+| Idempotent | Yes — `DROP FUNCTION IF EXISTS` precedes the `CREATE`. |
+| Why it is safe to replace | `get_priority_queue()` calls this function and reads only `name`, `distance_km`, `available_space` by name. Those keep their names, types and positions in the nine-column result, so the queue is unaffected (section 29). |
+| Verify | Section 30 — the nine-column `TABLE(...)` string, plus the two-shelter ordering check. |
+| Deploy hazard | If the Public Portal deploys before this file runs, every shelter is labelled "not enough for your group" and map pins are placed at `NaN` coordinates. Migrate first, then let Vercel rebuild (section 31). |
+
+### 0.6 Data changes, and the only one you have to run
+
+#### 0.6.1 Nothing else is backfilled
+
+Migrations 1, 2, 4 and 5 change no rows. Migration 3 backfills `Request_Needs` for open requests, and is what its verification query in section 8 checks.
+
+#### 0.6.2 What the migrations do to existing rows, in one place
+
+| Row set | Effect |
+| --- | --- |
+| Open, non-shelter `Aid_Requests` with no need | A `Request_Needs` row is derived from `num_people`. Named when the request type maps to a supply category (`food` → Food, `water` → Water, `medical` → Medical), otherwise recorded as `is_estimate = true`. |
+| Shelter-only open requests | No item need. A bed is served by check-in, not by allocating stock. |
+| Existing `Allocations` | Keep `need_id = NULL`. They are history, not claims about a need. |
+| Requests in an unexpected status | Set to `pending` before the constraint is added, so the constraint cannot fail the deploy. |
+| `Shelters.status` outside `active`/`inactive` | Set to `inactive` (fail closed), with a `NOTICE`. |
+
+#### 0.6.3 The one update you run by hand — close the historical events
+
+Required before Phase 4's T6, and it is the only data change in the whole train. `database/seed.sql` sets this for a fresh install; the hosted database was seeded before that and still has `end_date = NULL` everywhere.
+
+```sql
+-- Preview exactly the rows this closes.
+SELECT event_id, name, start_date
+FROM Disaster_Events
+WHERE end_date IS NULL AND start_date < DATE '2026-01-01';
+```
+
+```sql
+UPDATE Disaster_Events
+SET end_date = start_date + INTERVAL '2 months'
+WHERE end_date IS NULL AND start_date < DATE '2026-01-01';
+
+-- Verify: expect 2 (the two 2026 entries).
+SELECT count(*) AS open_events FROM Disaster_Events
+WHERE end_date IS NULL OR end_date >= CURRENT_DATE;
+```
+
+Idempotent: re-running matches nothing once every historical event has an `end_date`. To undo it entirely: `UPDATE Disaster_Events SET end_date = NULL WHERE start_date < DATE '2026-01-01';`.
+
+Two months after `start_date` is an approximation, and the file says so — these are curated historical events with no recorded end date. It is deliberately conservative: it closes the historical set and leaves the 2026 events open.
+
+### 0.7 What to expect while it is half-applied
+
+If you must stop partway, stop **between** migrations, after that migration's verification query passes. The dangerous half-states are inside migrations 3 and 4, because those are the two that change something the live API depends on:
+
+| Stopped after | Live behaviour |
+| --- | --- |
+| Migration 1 | Unchanged from today. Safe to leave overnight. |
+| Migration 2 | Queue and triage work; capacity cards still `0`; check-in still `500`. Safe to leave. |
+| Migration 3 | Allocation and needs work; shelter board still wrong; check-in still `500`. Safe to leave. |
+| Migration 4 | Everything except the portal's shelter list is correct; check-in **works**. |
+| Migration 5 | Everything correct except the portal's household-size ordering and its result labels. |
+
+In every one of those states the API and the frontends are already deployed, so the database is the only side that is behind — which is the recoverable direction.
+
+### 0.8 The codes you will meet
+
+| Code | Meaning here |
+| --- | --- |
+| `200` / `201` | Read / created |
+| `400` | Input rejected by the route's own validation, with a message naming the field. Never a database error. |
+| `401` | Not signed in, or a malformed `Authorization` header |
+| `403` | Signed in, wrong role |
+| `404` | The row does not exist (a real `404`, not a routing mistake) |
+| `409` | The action conflicts with current state: over-allocation, allocating to a fulfilled request, checking out more people than are inside, closing a shelter with people in it... |
+| `500` | A genuine unexpected failure — most often an unmigrated function being called (check-in before migration 4) |
+| `503` + "missing a required migration" | The code is ahead of the database. Run the migrations. |
+
+### 0.9 Troubleshooting
+
+| Symptom | Most likely cause | What to do |
+| --- | --- | --- |
+| A migration file errors partway | A statement inside it failed; the earlier statements in that file still applied | Stop. Do not run the next file. Read the error message, and restore the backup if it is not explainable (section 13). |
+| *cannot change return type of existing function* | Re-running migration 2 after migration 5 | Re-apply migration 3 to put `get_priority_queue()` back, then skip migration 2 — 0.5.0 already reports `m2_triage_columns = true`. |
+| *cannot drop columns from view* | Re-running migration 1 after migration 3 | Harmless, changes nothing. Skip migration 1; migration 3's view is the one you want. |
+| `503` on `GET /api/aid-requests/queue` immediately after a migration step | Migration 2's re-run dropped the queue function and stopped at the error | Re-apply migration 3. |
+| The queue loads but shows no needs or progress, and looks like the Phase A version | Migration 2 was re-run in the SQL editor, which carried on past the error and recreated `get_priority_queue()` at the Phase A shape | Re-apply migration 3. |
+| `42883 undefined_function` in Render logs | The API called a function the database does not have yet | The migration has not been applied. Run steps 5–9. |
+| `42703 undefined_column` / `42P01 undefined_table` in Render logs | Same, for a column or table | Same. `503` reaches the client instead of `500` because of `describeDatabaseError`. |
+| Shelter board totals still `0` after migrating | The Coordinator Dashboard is an older Vercel build, or the build failed | Check the Vercel deployment's commit and rebuild from `main`. |
+| Portal still lists all 15 disasters | Step 10 was skipped | Run the update in 0.6.3 and re-run the `open_events` check. |
+| Portal labels every shelter "not enough for your group" | Migration 5 has not run, or the portal build is older than the migration | Run the step 0.5.0 probe. If `m5_nearest_has_space` is `true`, rebuild the portal. |
+| Check-in reports success but occupancy does not change | Old API build against the new function (the silent direction, section 21) | Redeploy the API from `main`. |
+| Every request to the API is slow the first time | Render's free instance sleeps when idle; the first request can take 50 seconds or more | Retry once. Not a failure. |
+| The portal cannot reach the API at all | `VITE_API_URL` for that Vercel project, or the value was set for Production only while you are testing a preview | Fix the variable and wait for the rebuild — Vercel applies environment changes only on new builds. |
+
+### 0.10 Record sheet for this run
+
+Keep the three per-phase sheets (sections 15, 25, 35) if you are filling those in; this one is the summary a reviewer will ask for.
+
+| Field | Value |
+| --- | --- |
+| Date and time (with timezone) | |
+| Who ran it | |
+| Backup taken before starting (yes/no, and where) | |
+| 0.5.0 probe result **before** | |
+| Migration files applied, in order | |
+| 0.5.0 probe result **after** | |
+| `open_events` before / after step 10 | |
+| Render deploy commit | |
+| Public Portal Vercel commit | |
+| Coordinator Dashboard Vercel commit | |
+| Phase A (A1–A7) | |
+| Phase 2 (P1–P11) | |
+| Phase 3 (C1–C16) | |
+| Phase 4 (T1–T12) | |
+| Synthetic requests created / cleaned up | |
+| Test shelters created / cleaned up | |
+| Errors seen (browser console, Network, Render logs) | |
+| Anything left undone, and why | |
 
 ---
 
@@ -73,6 +377,8 @@ Only someone with access to the Render service settings can check this; the brow
 4. If they do not match, replace the Render value with the connection string for the intended project and redeploy. Never share the value while doing so.
 
 ## 6. Step 3 — preflight: what the database already has
+
+This is the Phase A / Phase 2 slice of the question. **Section 0.5.0 asks it for all five migrations at once and is the one to run first** — it also covers migrations 4 and 5, which this query does not.
 
 Supabase → **SQL Editor** → **New query**. Read-only:
 
