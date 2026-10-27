@@ -51,6 +51,76 @@ async function createUser({ name, phone, email, password, role }, res) {
   res.status(201).json(result.rows[0]);
 }
 
+// ------------------------------------------------------------
+// Login throttling (Audit #50)
+// ------------------------------------------------------------
+//
+// Keyed by the number being tried and the caller's address, so one attacked
+// account cannot be used to lock out everybody, and one address cannot try a
+// long list of numbers. In-memory on purpose: the API is a single process, and
+// a Map has no operational cost. It resets on deploy, and a shared store would
+// be needed behind more than one instance.
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 5;
+const loginFailures = new Map();
+
+function throttleKey(req, phone) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return `${phone}|${forwarded || req.ip || 'unknown'}`;
+}
+
+function blockedForMs(key) {
+  const entry = loginFailures.get(key);
+  if (!entry || !entry.blockedUntil) return 0;
+  const remaining = entry.blockedUntil - Date.now();
+  if (remaining <= 0) {
+    loginFailures.delete(key);
+    return 0;
+  }
+  return remaining;
+}
+
+function recordLoginFailure(key) {
+  const now = Date.now();
+  const entry = loginFailures.get(key) || { count: 0, firstFailedAt: now, blockedUntil: 0 };
+  if (now - entry.firstFailedAt > LOGIN_WINDOW_MS) {
+    entry.count = 0;
+    entry.firstFailedAt = now;
+    entry.blockedUntil = 0;
+  }
+  entry.count += 1;
+  if (entry.count >= LOGIN_MAX_FAILURES) entry.blockedUntil = now + LOGIN_WINDOW_MS;
+  loginFailures.set(key, entry);
+
+  // Bounded memory: drop finished entries once the map is worth walking.
+  if (loginFailures.size > 1000) {
+    for (const [candidate, value] of loginFailures) {
+      const expiry = value.blockedUntil || value.firstFailedAt + LOGIN_WINDOW_MS;
+      if (expiry <= now) loginFailures.delete(candidate);
+    }
+  }
+}
+
+// GET /api/auth/me — lets the dashboard rebuild its session from the token it
+// already holds, instead of forcing a fresh sign-in after a reload (Audit #46).
+// The role is read from the database rather than trusted from the token, so a
+// role change takes effect on the next reload.
+router.get('/me', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT user_id, name, role FROM Users WHERE user_id = $1',
+      [req.user.user_id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(401).json({ message: 'This account no longer exists' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to load the signed-in account' });
+  }
+});
+
 // POST /api/auth/register — public self-registration. Always creates a
 // Volunteer account; it cannot be used to grant Admin/ShelterCoordinator.
 router.post('/register', async (req, res) => {
@@ -104,17 +174,30 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ message: 'phone and password are required' });
   }
 
+  const key = throttleKey(req, String(phone).trim());
+  const blockedFor = blockedForMs(key);
+  if (blockedFor > 0) {
+    const minutes = Math.ceil(blockedFor / 60000);
+    res.set('Retry-After', String(Math.ceil(blockedFor / 1000)));
+    return res.status(429).json({
+      message: `Too many failed sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+    });
+  }
+
   try {
     const user = await findUserByPhone(phone);
     if (!user) {
+      recordLoginFailure(key);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
+      recordLoginFailure(key);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    loginFailures.delete(key);
     const token = jwt.sign(
       { user_id: user.user_id, role: user.role, name: user.name },
       process.env.JWT_SECRET,

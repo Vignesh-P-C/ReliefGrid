@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { describeDatabaseError } = require('../lib/databaseErrors');
+const { allocationAccessDenial } = require('../lib/shelterAccess');
 
 const router = express.Router();
 
@@ -164,6 +165,11 @@ router.post('/allocate', requireAuth, requireRole('Admin', 'ShelterCoordinator')
   }
 
   try {
+    // Stock is held at a shelter, so spending it is scoped to the coordinator
+    // who runs that shelter; an Admin is unrestricted (Audit #48).
+    const denial = await allocationAccessDenial(req.user, supplyId);
+    if (denial) return res.status(denial.status).json({ message: denial.message });
+
     const result = await pool.query(
       'SELECT * FROM allocate_supply($1, $2, $3, $4, $5)',
       [requestId, supplyId, allocatedQuantity, needId, req.user.user_id]

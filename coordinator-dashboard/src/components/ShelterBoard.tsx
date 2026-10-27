@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import api from '../lib/api';
 import { socket } from '../lib/socket';
-import type { ShelterLiveStatus } from '../types';
+import type { AuthUser, ShelterLiveStatus } from '../types';
 
 interface ShelterBoardProps {
   canManage: boolean;
+  user: AuthUser;
 }
 
 interface ShelterActionProps {
@@ -215,7 +216,7 @@ const statusLabels: Record<ShelterLiveStatus['status'], string> = {
   full: 'Full',
 };
 
-export default function ShelterBoard({ canManage }: ShelterBoardProps) {
+export default function ShelterBoard({ canManage, user }: ShelterBoardProps) {
   const [shelters, setShelters] = useState<ShelterLiveStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -269,6 +270,11 @@ export default function ShelterBoard({ canManage }: ShelterBoardProps) {
   const totalCapacity = activeShelters.reduce((sum, shelter) => sum + shelter.capacity_total, 0);
   const availableSpaces = activeShelters.reduce((sum, shelter) => sum + Math.max(0, shelter.capacity_total - shelter.capacity_occupied), 0);
   const inactiveCount = visibleShelters.length - activeShelters.length;
+
+  // Ownership, not just role: a coordinator acts only on the shelters assigned
+  // to them, which is what the API enforces (Audit #48). Showing the controls
+  // for somebody else's shelter would offer a button the API refuses.
+  const canActOn = (shelter: ShelterLiveStatus) => user.role === 'Admin' || shelter.coordinator_id === user.user_id;
 
   const startEdit = async (shelterId: number) => {
     setEditError('');
@@ -361,19 +367,29 @@ export default function ShelterBoard({ canManage }: ShelterBoardProps) {
                     </td>
                     <td>
                       <div className="checkin-checkout-group">
-                        {shelter.is_active ? (
-                          <ShelterCheckIn shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} />
+                        {!canActOn(shelter) ? (
+                          <small className="table-muted">Managed by another coordinator.</small>
                         ) : (
-                          <small className="table-muted">Closed — no new check-ins.</small>
+                          <>
+                            {shelter.is_active ? (
+                              <ShelterCheckIn shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} />
+                            ) : (
+                              <small className="table-muted">Closed — no new check-ins.</small>
+                            )}
+                            {/* Check-out stays available even when closed: a closed shelter can still hold
+                                people, and checkout_from_shelter() never checks status (Audit #19). */}
+                            <ShelterCheckOut shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} />
+                          </>
                         )}
-                        {/* Check-out stays available even when closed: a closed shelter can still hold
-                            people, and checkout_from_shelter() never checks status (Audit #19). */}
-                        <ShelterCheckOut shelterId={shelter.shelter_id} onSuccess={() => { void fetchShelters(); }} />
                       </div>
                     </td>
                     {canManage && (
                       <td>
-                        <button className="secondary-button" onClick={() => { void startEdit(shelter.shelter_id); }}>Edit</button>
+                        {canActOn(shelter) ? (
+                          <button className="secondary-button" onClick={() => { void startEdit(shelter.shelter_id); }}>Edit</button>
+                        ) : (
+                          <span className="table-muted">—</span>
+                        )}
                       </td>
                     )}
                   </tr>

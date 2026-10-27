@@ -49,12 +49,18 @@ async function loadFixtures() {
 
   const adminHash = await bcrypt.hash('AdminPass123', 10);
   const volunteerHash = await bcrypt.hash('VolPass123', 10);
+  const coordinatorHash = await bcrypt.hash('CoordPass123', 10);
   await client.query(
-    `INSERT INTO Users (name, phone, password_hash, role) VALUES
-       ('Test Admin', '9000000001', $1, 'Admin'),
-       ('Test Volunteer', '9000000002', $2, 'Volunteer')`,
-    [adminHash, volunteerHash]
+    `INSERT INTO Users (user_id, name, phone, password_hash, role) VALUES
+       (1, 'Test Admin', '9000000001', $1, 'Admin'),
+       (2, 'Test Volunteer', '9000000002', $2, 'Volunteer'),
+       (3, 'Test Coordinator', '9000000003', $3, 'ShelterCoordinator')`,
+    [adminHash, volunteerHash, coordinatorHash]
   );
+  // Capacity writes are now scoped to the shelter's assigned coordinator
+  // (Phase 5, Audit #47-#48), so the fixtures hand every shelter to that account
+  // and the capacity checks below act as its owner.
+  await client.query('UPDATE Shelters SET coordinator_id = 3');
 
   // Explicit PKs above don't advance the SERIAL sequences, so the next
   // plain INSERT (e.g. POST /api/shelters in the tests below) would try to
@@ -98,6 +104,7 @@ async function main() {
   console.log('Logging in as Admin and Volunteer...');
   const adminToken = await login('9000000001', 'AdminPass123');
   const volunteerToken = await login('9000000002', 'VolPass123');
+  const coordinatorToken = await login('9000000003', 'CoordPass123');
 
   console.log('\n-- Audit #22: event-/status-aware live board --');
   {
@@ -119,21 +126,21 @@ async function main() {
 
   console.log('\n-- Audit #21: unknown shelter ID on check-in --');
   {
-    const { status, data } = await req('POST', '/api/shelters/9999/checkin', volunteerToken, { num_people: 1 });
+    const { status, data } = await req('POST', '/api/shelters/9999/checkin', coordinatorToken, { num_people: 1 });
     check('check-in to unknown shelter returns 404', status === 404, status);
     check('response is not a false success', data?.success !== true);
   }
 
   console.log('\n-- Audit #20: check-in blocked on inactive shelter --');
   {
-    const { status, data } = await req('POST', '/api/shelters/2/checkin', volunteerToken, { num_people: 1 });
+    const { status, data } = await req('POST', '/api/shelters/2/checkin', coordinatorToken, { num_people: 1 });
     check('check-in to inactive shelter returns 409', status === 409, status);
     check('message mentions closed/inactive', /inactive|closed/i.test(data?.message || ''));
   }
 
   console.log('\n-- check-in blocked when full --');
   {
-    const { status, data } = await req('POST', '/api/shelters/3/checkin', volunteerToken, { num_people: 1 });
+    const { status, data } = await req('POST', '/api/shelters/3/checkin', coordinatorToken, { num_people: 1 });
     check('check-in to full shelter returns 409', status === 409, status);
     check('message mentions space', /space/i.test(data?.message || ''));
   }
@@ -141,22 +148,22 @@ async function main() {
   console.log('\n-- Audit #19: check-in then check-out on an active shelter --');
   {
     const before = (await req('GET', '/api/shelters')).data.find((s) => s.shelter_id === 1);
-    const checkinResult = await req('POST', '/api/shelters/1/checkin', volunteerToken, { num_people: 1 });
+    const checkinResult = await req('POST', '/api/shelters/1/checkin', coordinatorToken, { num_people: 1 });
     check('valid check-in succeeds', checkinResult.status === 200 && checkinResult.data?.success === true, checkinResult.status);
 
     const afterCheckin = (await req('GET', '/api/shelters')).data.find((s) => s.shelter_id === 1);
     check('occupancy increased by 1 after check-in', afterCheckin.capacity_occupied === before.capacity_occupied + 1);
 
-    const overCheckout = await req('POST', '/api/shelters/1/checkout', volunteerToken, { num_people: 999 });
+    const overCheckout = await req('POST', '/api/shelters/1/checkout', coordinatorToken, { num_people: 999 });
     check('check-out exceeding occupancy returns 409', overCheckout.status === 409, overCheckout.status);
 
-    const checkoutResult = await req('POST', '/api/shelters/1/checkout', volunteerToken, { num_people: 1 });
+    const checkoutResult = await req('POST', '/api/shelters/1/checkout', coordinatorToken, { num_people: 1 });
     check('valid check-out succeeds', checkoutResult.status === 200 && checkoutResult.data?.success === true, checkoutResult.status);
 
     const afterCheckout = (await req('GET', '/api/shelters')).data.find((s) => s.shelter_id === 1);
     check('occupancy back to original after check-out', afterCheckout.capacity_occupied === before.capacity_occupied);
 
-    const unknownCheckout = await req('POST', '/api/shelters/9999/checkout', volunteerToken, { num_people: 1 });
+    const unknownCheckout = await req('POST', '/api/shelters/9999/checkout', coordinatorToken, { num_people: 1 });
     check('check-out of unknown shelter returns 404', unknownCheckout.status === 404, unknownCheckout.status);
   }
 
@@ -179,6 +186,7 @@ async function main() {
 
     const created = await req('POST', '/api/shelters', adminToken, {
       name: 'New Shelter', latitude: 11, longitude: 77, capacity_total: 10, contact_number: '9999999999',
+      coordinator_id: 3,
     });
     check('Admin can create a shelter (201)', created.status === 201, created.status);
     newShelterId = created.data?.shelter_id;
@@ -192,7 +200,7 @@ async function main() {
 
   console.log('\n-- Audit #25: capacity_total cannot drop below current occupancy --');
   {
-    await req('POST', `/api/shelters/${newShelterId}/checkin`, volunteerToken, { num_people: 4 });
+    await req('POST', `/api/shelters/${newShelterId}/checkin`, coordinatorToken, { num_people: 4 });
     const shrink = await req('PATCH', `/api/shelters/${newShelterId}`, adminToken, { capacity_total: 2 });
     check('reducing capacity_total below occupancy returns 409', shrink.status === 409, shrink.status);
 
@@ -210,10 +218,10 @@ async function main() {
   {
     // newShelterId was closed (status -> inactive) in the block above while it
     // still had 4 people checked in. Closing it must not freeze that occupancy.
-    const checkinWhileClosed = await req('POST', `/api/shelters/${newShelterId}/checkin`, volunteerToken, { num_people: 1 });
+    const checkinWhileClosed = await req('POST', `/api/shelters/${newShelterId}/checkin`, coordinatorToken, { num_people: 1 });
     check('check-in is still blocked once closed', checkinWhileClosed.status === 409, checkinWhileClosed.status);
 
-    const checkoutWhileClosed = await req('POST', `/api/shelters/${newShelterId}/checkout`, volunteerToken, { num_people: 4 });
+    const checkoutWhileClosed = await req('POST', `/api/shelters/${newShelterId}/checkout`, coordinatorToken, { num_people: 4 });
     check('check-out still works on a closed shelter', checkoutWhileClosed.status === 200 && checkoutWhileClosed.data?.success === true, checkoutWhileClosed.status);
 
     const emptied = (await req('GET', '/api/shelters')).data.find((s) => s.shelter_id === newShelterId);
@@ -222,10 +230,10 @@ async function main() {
 
   console.log('\n-- Non-numeric shelter IDs are rejected, not 500 --');
   {
-    const checkin = await req('POST', '/api/shelters/abc/checkin', volunteerToken, { num_people: 1 });
+    const checkin = await req('POST', '/api/shelters/abc/checkin', coordinatorToken, { num_people: 1 });
     check('check-in with a non-numeric id returns 400', checkin.status === 400, checkin.status);
 
-    const checkout = await req('POST', '/api/shelters/abc/checkout', volunteerToken, { num_people: 1 });
+    const checkout = await req('POST', '/api/shelters/abc/checkout', coordinatorToken, { num_people: 1 });
     check('check-out with a non-numeric id returns 400', checkout.status === 400, checkout.status);
 
     const get = await req('GET', '/api/shelters/abc', adminToken);
@@ -276,8 +284,8 @@ async function main() {
     //   checkout then checkin: 2-1=1, then 1+2=3 (<=3, succeeds)   -> final 3, both succeed
     //   checkin then checkout: 2+2=4 (>3, rejected), then 2-1=1    -> final 1, checkin rejected
     const [checkinResult, checkoutResult] = await Promise.all([
-      req('POST', '/api/shelters/4/checkin', volunteerToken, { num_people: 2 }),
-      req('POST', '/api/shelters/4/checkout', volunteerToken, { num_people: 1 }),
+      req('POST', '/api/shelters/4/checkin', coordinatorToken, { num_people: 2 }),
+      req('POST', '/api/shelters/4/checkout', coordinatorToken, { num_people: 1 }),
     ]);
     check('check-out never fails in this race (never exceeds occupancy)', checkoutResult.status === 200, checkoutResult.status);
 
