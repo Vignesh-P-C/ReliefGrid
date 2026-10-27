@@ -13,34 +13,57 @@ diff must compare column sets, not `attnum` order.
 
 ## Order
 
-Apply in filename order. Never apply an older file after a newer one.
+Apply in the numbered order below — never an older file after a newer one.
+Filename order is **not** the apply order here: the Phase 3 and Phase 4 files were
+written on branches and carry an earlier date prefix (`20261025`) than migration
+3 (`20261026`), so sorting the directory by name would run them ahead of the
+migration they follow.
 
 | # | File | What it changes |
 | --- | --- | --- |
 | 1 | `20261016_add_supply_id_to_shortage_view.sql` | Adds `supply_id` to `Critical_Supply_Shortage` so the allocation action can identify the stock row. |
 | 2 | `20261025_add_aid_request_triage.sql` | Adds `reviewed_priority` / `reviewed_by` / `reviewed_at`, and replaces `get_priority_queue()` with ageing and request detail. |
 | 3 | `20261026_add_request_needs_and_partial_fulfilment.sql` | Adds `Request_Needs`, links allocations to a need and an actor, adds the request status constraint, and replaces `allocate_supply()` and `get_priority_queue()`. Also widens the shortage view with `unit` and category fields. |
+| 4 | `20261025_phase3_capacity_truth.sql` | Restricts `Shelters.status` to `active`/`inactive`, makes `checkin_to_shelter()` return a reason instead of a boolean (`ok` / `not_found` / `inactive` / `full`), adds `checkout_from_shelter()`, and widens `Shelter_Live_Status` with event context and `is_active`. |
+| 5 | `20261025_phase4_portal_trust.sql` | Replaces `find_nearest_shelters()`: shelters with room for the household sort first, full ones stay in the result flagged `has_space = false`, and location and contact details come back with each row. |
 
 ## Applying
 
-Against Supabase, paste each file into the SQL editor in order. Against any
-other PostgreSQL instance:
+Against Supabase, paste each file into the SQL editor — one file per query, in
+the numbered order. Against any other PostgreSQL instance:
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f database/migrations/20261016_add_supply_id_to_shortage_view.sql \
   -f database/migrations/20261025_add_aid_request_triage.sql \
-  -f database/migrations/20261026_add_request_needs_and_partial_fulfilment.sql
+  -f database/migrations/20261026_add_request_needs_and_partial_fulfilment.sql \
+  -f database/migrations/20261025_phase3_capacity_truth.sql \
+  -f database/migrations/20261025_phase4_portal_trust.sql
 ```
 
 Always use `-v ON_ERROR_STOP=1`. Without it `psql` keeps going after an error
 and leaves the database half-migrated.
 
-Migration 3 is idempotent: it uses `IF NOT EXISTS` for tables, columns and
-indexes, a guarded `DO` block for the status constraint, and
-`CREATE OR REPLACE` for functions. Re-running it is safe. Migrations 1 and 2
-are **not** idempotent in that sense — migration 2's `CREATE FUNCTION` will fail
-if run twice — so run the sequence once per environment.
+Migrations 3, 4 and 5 are idempotent. Migration 3 uses `IF NOT EXISTS` for
+tables, columns and indexes, a guarded `DO` block for the status constraint and
+`CREATE OR REPLACE` for functions; migrations 4 and 5 guard their constraints
+the same way and drop a function before recreating it when its return columns
+change. Re-running any of those three is safe. Migrations 1 and 2 are **not**, and both
+fail in a way that depends on how far the later files have got:
+
+- Migration 1 re-runs cleanly until migration 3 replaces the view, after which
+  it fails with *cannot drop columns from view* — `CREATE OR REPLACE VIEW` can
+  add columns, not remove them. Nothing is changed by the failure.
+- Migration 2 re-runs cleanly until migration 5 widens
+  `find_nearest_shelters()`, after which it fails with *cannot change return
+  type of existing function*. Because the same file drops
+  `get_priority_queue()` a few statements earlier, that failure leaves the queue
+  function **dropped** in a client that stops at the first error (`psql`), or
+  silently reverted to its Phase A shape in one that carries on (the Supabase
+  editor). Re-applying migration 3 repairs either state.
+
+Apply 1 and 2 once each, in order. If one of them reports an error, re-apply
+migration 3 before moving on, and read the message rather than pasting again.
 
 ## Deployment order
 
@@ -48,6 +71,13 @@ if run twice — so run the sequence once per environment.
 2. Apply the migrations.
 3. Deploy the API.
 4. Deploy the frontends.
+
+A build that reads a new column or a changed function shape has to deploy
+*after* the migration that provides it. Migration 5 (`find_nearest_shelters()`
+going from four columns to nine) is the current example: a portal deployed ahead
+of it labels every shelter "not enough for your group" and places map pins at
+`NaN` coordinates. `DEPLOYED_VERIFICATION_RUNBOOK.md` section 31 records the
+detail.
 
 The API and frontends are written to fail with a readable message rather than
 silently misbehaving if they are deployed against a database that has not been
