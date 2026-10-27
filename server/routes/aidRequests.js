@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { describeDatabaseError } = require('../lib/databaseErrors');
+const { normalisePhone } = require('../lib/phone');
 
 const router = express.Router();
 
@@ -143,13 +144,15 @@ router.post('/', async (req, res) => {
   const { event_id, requester_name, phone, latitude, longitude, request_type, num_people, urgency_level } = req.body;
 
   const trimmedName = typeof requester_name === 'string' ? requester_name.trim() : '';
-  const trimmedPhone = typeof phone === 'string' ? phone.trim() : '';
+  // Separators are not part of the number, so they do not count against the
+  // column limit, and the stored value stays dialable either way.
+  const normalisedPhone = normalisePhone(phone);
 
   if (!trimmedName || trimmedName.length > REQUESTER_NAME_MAX_LENGTH) {
     return res.status(400).json({ message: `requester_name is required and must be ${REQUESTER_NAME_MAX_LENGTH} characters or fewer` });
   }
-  if (!trimmedPhone || trimmedPhone.length > PHONE_MAX_LENGTH) {
-    return res.status(400).json({ message: `phone is required and must be ${PHONE_MAX_LENGTH} characters or fewer` });
+  if (normalisedPhone === '' || normalisedPhone.length > PHONE_MAX_LENGTH) {
+    return res.status(400).json({ message: `phone is required and must be at most ${PHONE_MAX_LENGTH} digits (spaces, dashes and brackets are ignored)` });
   }
   if (!Number.isInteger(Number(num_people)) || Number(num_people) < 1) {
     return res.status(400).json({ message: 'num_people must be a positive whole number' });
@@ -193,7 +196,7 @@ router.post('/', async (req, res) => {
       [
         event_id ? Number(event_id) : null,
         trimmedName,
-        trimmedPhone,
+        normalisedPhone,
         hasLatitude ? Number(latitude) : null,
         hasLatitude ? Number(longitude) : null,
         request_type || null,

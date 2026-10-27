@@ -166,7 +166,7 @@ export default function FindShelter() {
                       {shelter.contact_number && <a href={`tel:${shelter.contact_number}`}>Call</a>}
                     </div>
                   </div>
-                  <span className="spaces-count"><strong>{shelter.has_space ? shelter.available_space : 'Full'}</strong><small>{shelter.has_space ? 'spaces' : 'no space'}</small></span>
+                  <span className="spaces-count"><strong>{shelter.available_space}</strong><small>{shelter.has_space ? 'spaces' : 'spaces · not enough for your group'}</small></span>
                 </li>
               ))}
             </ol>
@@ -206,7 +206,7 @@ export default function FindShelter() {
             {coords && <Marker position={coords}><Popup>Your approximate location</Popup></Marker>}
             {shelterMarkers.map((shelter) => (
               <Marker key={shelter.shelter_id} position={[Number(shelter.latitude), Number(shelter.longitude)]}>
-                <Popup>{shelter.name}{shelter.has_space ? ` · ${shelter.available_space} spaces` : ' · full'}</Popup>
+                <Popup>{shelter.name}{shelter.has_space ? ` · ${shelter.available_space} spaces` : ' · not enough space for your group'}</Popup>
               </Marker>
             ))}
           </MapContainer>

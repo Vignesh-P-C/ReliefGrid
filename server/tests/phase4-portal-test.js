@@ -123,6 +123,12 @@ async function main() {
     const overlongPhone = await req('POST', '/api/aid-requests', null, { ...validRequest(), phone: '1'.repeat(16) });
     check('phone over 15 chars returns 400', overlongPhone.status === 400, overlongPhone.status);
 
+    // Separators are not part of the number, so they must not count against the
+    // column limit either — this was an 16-character 400 before.
+    const spacedPhone = await req('POST', '/api/aid-requests', null, { ...validRequest(), phone: '+91 98765 43210' });
+    check('phone with separators is accepted', spacedPhone.status === 201, spacedPhone.status);
+    check('the stored phone drops separators', spacedPhone.data?.phone === '+919876543210', spacedPhone.data?.phone);
+
     const badPeople = await req('POST', '/api/aid-requests', null, { ...validRequest(), num_people: 0 });
     check('num_people = 0 returns 400', badPeople.status === 400, badPeople.status);
 
@@ -162,6 +168,15 @@ async function main() {
 
     const validVolunteer = await req('POST', '/api/auth/register', null, { name: 'Normal Name', phone: '9112233445', password: 'secret123' });
     check('valid volunteer registration returns 201', validVolunteer.status === 201, validVolunteer.status);
+
+    const spacedNumber = '+91 98765 43211';
+    const spacedVolunteer = await req('POST', '/api/auth/register', null, { name: 'Spaced Phone', phone: spacedNumber, password: 'secret123' });
+    check('registration accepts a phone with separators', spacedVolunteer.status === 201, spacedVolunteer.status);
+    check('the registered phone drops separators', spacedVolunteer.data?.phone === '+919876543211', spacedVolunteer.data?.phone);
+
+    // Otherwise the account created just above could never sign in.
+    const spacedLogin = await req('POST', '/api/auth/login', null, { phone: spacedNumber, password: 'secret123' });
+    check('that account signs in with the same separators', spacedLogin.status === 200, spacedLogin.status);
   }
 
   console.log('\n-- Audit #39/#40/#41: find_nearest_shelters --');

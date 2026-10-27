@@ -8,6 +8,14 @@ type RequestType = 'shelter' | 'medical' | 'food' | 'rescue';
 const NAME_MAX_LENGTH = 100;
 const PHONE_MAX_LENGTH = 15;
 
+// Same rule the API applies: spaces, dashes and brackets are not part of the
+// number, so they must not count against the 15-character limit. Dropping them
+// as they are typed also stops maxLength from silently turning "+91 98765
+// 43210" into a different number before it is submitted.
+const PHONE_SEPARATORS = /[\s\-().]/g;
+
+const stripPhoneSeparators = (value: string) => value.replace(PHONE_SEPARATORS, '');
+
 const initialForm = {
   requester_name: '',
   phone: '',
@@ -86,13 +94,13 @@ export default function RequestForm() {
     setError('');
 
     const trimmedName = form.requester_name.trim();
-    const trimmedPhone = form.phone.trim();
+    const trimmedPhone = stripPhoneSeparators(form.phone.trim());
     if (!trimmedName || trimmedName.length > NAME_MAX_LENGTH) {
       setError(`Name is required and must be ${NAME_MAX_LENGTH} characters or fewer.`);
       return;
     }
     if (!trimmedPhone || trimmedPhone.length > PHONE_MAX_LENGTH) {
-      setError(`Phone number is required and must be ${PHONE_MAX_LENGTH} characters or fewer.`);
+      setError(`Phone number is required and must be at most ${PHONE_MAX_LENGTH} digits.`);
       return;
     }
 
@@ -177,7 +185,7 @@ export default function RequestForm() {
 
             <label className="field-group field-wide" htmlFor="requester-phone">
               <span>Phone number</span>
-              <input id="requester-phone" name="tel" type="tel" autoComplete="tel" required maxLength={PHONE_MAX_LENGTH} value={form.phone} onChange={(event) => setForm((previous) => ({ ...previous, phone: event.target.value }))} placeholder="A number coordinators can reach" />
+              <input id="requester-phone" name="tel" type="tel" autoComplete="tel" required maxLength={PHONE_MAX_LENGTH} value={form.phone} onChange={(event) => setForm((previous) => ({ ...previous, phone: stripPhoneSeparators(event.target.value) }))} placeholder="A number coordinators can reach" />
             </label>
 
             <label className="field-group" htmlFor="request-type">

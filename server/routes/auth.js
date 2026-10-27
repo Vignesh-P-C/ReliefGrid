@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { normalisePhone } = require('../lib/phone');
 
 const router = express.Router();
 
@@ -14,10 +15,29 @@ function validateNameAndPhone(name, phone) {
   if (typeof name !== 'string' || name.trim() === '' || name.trim().length > NAME_MAX_LENGTH) {
     return `name is required and must be ${NAME_MAX_LENGTH} characters or fewer`;
   }
-  if (typeof phone !== 'string' || phone.trim() === '' || phone.trim().length > PHONE_MAX_LENGTH) {
-    return `phone is required and must be ${PHONE_MAX_LENGTH} characters or fewer`;
+  // Separators are not part of the number, so they do not count against the
+  // column limit: "+91 98765 43210" is well inside it once they are removed.
+  const normalisedPhone = normalisePhone(phone);
+  if (normalisedPhone === '' || normalisedPhone.length > PHONE_MAX_LENGTH) {
+    return `phone is required and must be at most ${PHONE_MAX_LENGTH} digits (spaces, dashes and brackets are ignored)`;
   }
   return null;
+}
+
+// Numbers are stored normalised, so login has to normalise too — otherwise the
+// person who registered as "+91 98765 43210" could never sign in. The raw value
+// is a second candidate so accounts created before this rule (which may hold
+// separators within the 15-character limit) keep working.
+async function findUserByPhone(phone) {
+  const raw = typeof phone === 'string' ? phone.trim() : String(phone ?? '');
+  const normalised = normalisePhone(raw);
+  const candidates = normalised === raw ? [raw] : [raw, normalised];
+
+  for (const candidate of candidates) {
+    const result = await pool.query('SELECT * FROM Users WHERE phone = $1', [candidate]);
+    if (result.rowCount > 0) return result.rows[0];
+  }
+  return undefined;
 }
 
 async function createUser({ name, phone, email, password, role }, res) {
@@ -44,7 +64,7 @@ router.post('/register', async (req, res) => {
   }
 
   try {
-    await createUser({ name: name.trim(), phone: phone.trim(), email, password, role: 'Volunteer' }, res);
+    await createUser({ name: name.trim(), phone: normalisePhone(phone), email, password, role: 'Volunteer' }, res);
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ message: 'A user with that phone number already exists' });
@@ -67,7 +87,7 @@ router.post('/register/staff', requireAuth, requireRole('Admin'), async (req, re
   }
 
   try {
-    await createUser({ name: name.trim(), phone: phone.trim(), email, password, role }, res);
+    await createUser({ name: name.trim(), phone: normalisePhone(phone), email, password, role }, res);
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ message: 'A user with that phone number already exists' });
@@ -85,8 +105,7 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT * FROM Users WHERE phone = $1', [phone]);
-    const user = result.rows[0];
+    const user = await findUserByPhone(phone);
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
