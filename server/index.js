@@ -23,6 +23,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/shelters', require('./routes/shelters'));
 app.use('/api/aid-requests', require('./routes/aidRequests'));
 app.use('/api/supplies', require('./routes/supplies'));
+app.use('/api/events', require('./routes/events'));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`ReliefGrid server running on port ${PORT}`));

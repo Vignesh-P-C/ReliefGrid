@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { describeDatabaseError } = require('../lib/databaseErrors');
+const { normalisePhone } = require('../lib/phone');
 
 const router = express.Router();
 
@@ -130,12 +131,53 @@ router.patch('/:requestId/priority', requireAuth, requireRole('Admin', 'ShelterC
   }
 });
 
-// POST /api/aid-requests — submitted from the public portal, no auth required
+// Matches the Users/Aid_Requests column limits in schema.sql so overlong
+// input is rejected with a 400 here instead of a 500 from Postgres (Audit #34).
+const REQUESTER_NAME_MAX_LENGTH = 100;
+const PHONE_MAX_LENGTH = 15;
+const SUPPORTED_REQUEST_TYPES = ['shelter', 'medical', 'food', 'rescue'];
+
+// POST /api/aid-requests — submitted from the public portal, no auth required.
+// Validates type/range/length before SQL execution so bad input is a 400, not
+// a database CHECK-constraint 500 (Audit #35).
 router.post('/', async (req, res) => {
   const { event_id, requester_name, phone, latitude, longitude, request_type, num_people, urgency_level } = req.body;
 
-  if (!requester_name || !phone || !num_people || !urgency_level) {
-    return res.status(400).json({ message: 'requester_name, phone, num_people, and urgency_level are required' });
+  const trimmedName = typeof requester_name === 'string' ? requester_name.trim() : '';
+  // Separators are not part of the number, so they do not count against the
+  // column limit, and the stored value stays dialable either way.
+  const normalisedPhone = normalisePhone(phone);
+
+  if (!trimmedName || trimmedName.length > REQUESTER_NAME_MAX_LENGTH) {
+    return res.status(400).json({ message: `requester_name is required and must be ${REQUESTER_NAME_MAX_LENGTH} characters or fewer` });
+  }
+  if (normalisedPhone === '' || normalisedPhone.length > PHONE_MAX_LENGTH) {
+    return res.status(400).json({ message: `phone is required and must be at most ${PHONE_MAX_LENGTH} digits (spaces, dashes and brackets are ignored)` });
+  }
+  if (!Number.isInteger(Number(num_people)) || Number(num_people) < 1) {
+    return res.status(400).json({ message: 'num_people must be a positive whole number' });
+  }
+  if (!Number.isInteger(Number(urgency_level)) || Number(urgency_level) < 1 || Number(urgency_level) > 5) {
+    return res.status(400).json({ message: 'urgency_level must be a whole number from 1 to 5' });
+  }
+  if (request_type !== undefined && request_type !== null && !SUPPORTED_REQUEST_TYPES.includes(request_type)) {
+    return res.status(400).json({ message: `request_type must be one of: ${SUPPORTED_REQUEST_TYPES.join(', ')}` });
+  }
+  if (event_id !== undefined && event_id !== null && event_id !== '' && (!Number.isInteger(Number(event_id)) || Number(event_id) < 1)) {
+    return res.status(400).json({ message: 'event_id must be a positive whole number' });
+  }
+
+  const hasLatitude = latitude !== undefined && latitude !== null && latitude !== '';
+  const hasLongitude = longitude !== undefined && longitude !== null && longitude !== '';
+  if (hasLatitude !== hasLongitude) {
+    return res.status(400).json({ message: 'latitude and longitude must both be provided together' });
+  }
+  if (hasLatitude) {
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180) {
+      return res.status(400).json({ message: 'latitude and longitude must be valid coordinates' });
+    }
   }
 
   const { needs, error: needsError } = normaliseNeeds(req.body.needs);
@@ -151,7 +193,16 @@ router.post('/', async (req, res) => {
       `INSERT INTO Aid_Requests (event_id, requester_name, phone, latitude, longitude, request_type, num_people, urgency_level)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
-      [event_id || null, requester_name, phone, latitude || null, longitude || null, request_type || null, num_people, urgency_level]
+      [
+        event_id ? Number(event_id) : null,
+        trimmedName,
+        normalisedPhone,
+        hasLatitude ? Number(latitude) : null,
+        hasLatitude ? Number(longitude) : null,
+        request_type || null,
+        Number(num_people),
+        Number(urgency_level),
+      ]
     );
     const request = result.rows[0];
 
@@ -188,6 +239,12 @@ router.post('/', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     if (err.code === '23503') {
+      // Two different FKs can fire in this transaction: Aid_Requests.event_id
+      // and Request_Needs.category_id. Tell them apart by constraint name
+      // instead of guessing, now that both inserts share one transaction.
+      if (err.constraint === 'aid_requests_event_id_fkey') {
+        return res.status(400).json({ message: 'event_id does not reference an existing disaster event' });
+      }
       return res.status(400).json({ message: 'One of the selected supply categories does not exist' });
     }
     const migration = describeDatabaseError(err);

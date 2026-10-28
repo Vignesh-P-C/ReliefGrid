@@ -406,7 +406,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 34. Field lengths do not match the database
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Broken · **Area:** Portal · **Layer:** API + DB
 
@@ -416,7 +416,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 35. API validation is presence-only
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Broken · **Area:** Portal · **Layer:** API
 
@@ -426,7 +426,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 36. The success screen gives no reference number
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Gap · **Area:** Portal · **Layer:** Frontend
 
@@ -446,7 +446,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 38. Location is all-or-nothing
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Blocker · **Area:** Portal · **Layer:** Frontend
 
@@ -456,7 +456,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 39. Household size is ignored in shelter search
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Blocker · **Area:** Portal · **Layer:** Frontend
 
@@ -466,7 +466,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 40. The map only shows the user
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Blocker · **Area:** Portal · **Layer:** DB + Frontend
 
@@ -476,7 +476,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 41. Results cannot be acted on
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Gap · **Area:** Portal · **Layer:** DB + Frontend
 
@@ -486,7 +486,7 @@ The portal is the only interface most affected people will ever see, and it curr
 
 ### 42. Requests have no disaster context
 
-- [ ] Resolved
+- [x] Resolved
 
 **Severity:** Gap · **Area:** Portal · **Layer:** Frontend
 

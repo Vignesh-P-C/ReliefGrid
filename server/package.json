@@ -8,6 +8,7 @@
     "start": "node index.js",
     "test:allocation": "node tests/allocation-test.js",
     "test:phase3": "node tests/phase3-capacity-test.js",
+    "test:phase4": "node tests/phase4-portal-test.js",
     "test:concurrency": "node tests/concurrency-test.js",
     "test:isolation": "node tests/isolation-level-test.js",
     "test:deadlock": "node tests/deadlock-test.js"

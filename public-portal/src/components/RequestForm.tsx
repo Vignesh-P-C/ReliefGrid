@@ -1,8 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import api from '../lib/api';
-import type { SupplyCategory } from '../types';
+import type { DisasterEvent, SupplyCategory } from '../types';
 
 type RequestType = 'shelter' | 'medical' | 'food' | 'rescue';
+
+// Matches the Users/Aid_Requests column limits enforced server-side (Audit #34).
+const NAME_MAX_LENGTH = 100;
+const PHONE_MAX_LENGTH = 15;
+
+// Same rule the API applies: spaces, dashes and brackets are not part of the
+// number, so they must not count against the 15-character limit. Dropping them
+// as they are typed also stops maxLength from silently turning "+91 98765
+// 43210" into a different number before it is submitted.
+const PHONE_SEPARATORS = /[\s\-().]/g;
+
+const stripPhoneSeparators = (value: string) => value.replace(PHONE_SEPARATORS, '');
 
 const initialForm = {
   requester_name: '',
@@ -10,6 +22,7 @@ const initialForm = {
   request_type: 'shelter' as RequestType,
   num_people: 1,
   urgency_level: 3,
+  event_id: '',
 };
 
 const urgencyLabels: Record<number, string> = {
@@ -20,6 +33,11 @@ const urgencyLabels: Record<number, string> = {
   5: 'Critical',
 };
 
+function readErrorMessage(requestError: unknown, fallback: string): string {
+  const error = requestError as { response?: { data?: { message?: string } } };
+  return error.response?.data?.message || fallback;
+}
+
 interface NeedDraft {
   checked: boolean;
   quantity: number;
@@ -27,12 +45,26 @@ interface NeedDraft {
 
 export default function RequestForm() {
   const [form, setForm] = useState(initialForm);
+  const [events, setEvents] = useState<DisasterEvent[]>([]);
   const [categories, setCategories] = useState<SupplyCategory[]>([]);
   const [categoriesUnavailable, setCategoriesUnavailable] = useState(false);
   const [needs, setNeeds] = useState<Record<number, NeedDraft>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [referenceId, setReferenceId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get<DisasterEvent[]>('/events')
+      .then((response) => {
+        setEvents(response.data);
+        // A single active event is unambiguous, so pre-select it (Audit #42).
+        if (response.data.length === 1) {
+          setForm((previous) => ({ ...previous, event_id: String(response.data[0].event_id) }));
+        }
+      })
+      .catch((requestError) => console.error('Failed to fetch active events', requestError));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -61,6 +93,17 @@ export default function RequestForm() {
     if (submitting) return;
     setError('');
 
+    const trimmedName = form.requester_name.trim();
+    const trimmedPhone = stripPhoneSeparators(form.phone.trim());
+    if (!trimmedName || trimmedName.length > NAME_MAX_LENGTH) {
+      setError(`Name is required and must be ${NAME_MAX_LENGTH} characters or fewer.`);
+      return;
+    }
+    if (!trimmedPhone || trimmedPhone.length > PHONE_MAX_LENGTH) {
+      setError(`Phone number is required and must be at most ${PHONE_MAX_LENGTH} digits.`);
+      return;
+    }
+
     const selectedNeeds = Object.entries(needs).filter(([, draft]) => draft.checked);
     for (const [categoryId, draft] of selectedNeeds) {
       if (!Number.isInteger(draft.quantity) || draft.quantity < 1) {
@@ -74,8 +117,11 @@ export default function RequestForm() {
 
     const submitWithLocation = async (latitude?: number, longitude?: number) => {
       try {
-        await api.post('/aid-requests', {
+        const response = await api.post('/aid-requests', {
           ...form,
+          requester_name: trimmedName,
+          phone: trimmedPhone,
+          event_id: form.event_id ? Number(form.event_id) : null,
           latitude,
           longitude,
           needs: selectedNeeds.map(([categoryId, draft]) => ({
@@ -83,11 +129,11 @@ export default function RequestForm() {
             quantity_needed: draft.quantity,
           })),
         });
+        setReferenceId(response.data?.request_id ?? null);
         setSubmitted(true);
       } catch (requestError) {
         console.error('Failed to submit request', requestError);
-        const failure = requestError as { response?: { data?: { message?: string } } };
-        setError(failure.response?.data?.message || 'Your request could not be sent right now. Please check your connection and try again.');
+        setError(readErrorMessage(requestError, 'Your request could not be sent right now. Please check your connection and try again.'));
       } finally {
         setSubmitting(false);
       }
@@ -110,8 +156,11 @@ export default function RequestForm() {
         <span className="success-mark" aria-hidden="true">✓</span>
         <p className="eyebrow">REQUEST RECEIVED</p>
         <h2>We’ve sent your request.</h2>
+        {referenceId !== null && (
+          <p className="request-reference"><strong>Your reference number is #{referenceId}.</strong> Quote this number if you call or follow up about this request.</p>
+        )}
         <p>Your details are now with the response team. Keep your phone nearby in case a coordinator needs to contact you.</p>
-        <button className="secondary-button" type="button" onClick={() => { setForm(initialForm); setNeeds({}); setSubmitted(false); setError(''); }}>Send another request</button>
+        <button className="secondary-button" type="button" onClick={() => { setForm(initialForm); setNeeds({}); setSubmitted(false); setReferenceId(null); setError(''); }}>Send another request</button>
       </div>
     );
   }
@@ -131,12 +180,12 @@ export default function RequestForm() {
           <div className="form-fields-grid">
             <label className="field-group field-wide" htmlFor="requester-name">
               <span>Full name</span>
-              <input id="requester-name" name="name" autoComplete="name" required maxLength={120} value={form.requester_name} onChange={(event) => setForm((previous) => ({ ...previous, requester_name: event.target.value }))} placeholder="Name of the person requesting help" />
+              <input id="requester-name" name="name" autoComplete="name" required maxLength={NAME_MAX_LENGTH} value={form.requester_name} onChange={(event) => setForm((previous) => ({ ...previous, requester_name: event.target.value }))} placeholder="Name of the person requesting help" />
             </label>
 
             <label className="field-group field-wide" htmlFor="requester-phone">
               <span>Phone number</span>
-              <input id="requester-phone" name="tel" type="tel" autoComplete="tel" required maxLength={30} value={form.phone} onChange={(event) => setForm((previous) => ({ ...previous, phone: event.target.value }))} placeholder="A number coordinators can reach" />
+              <input id="requester-phone" name="tel" type="tel" autoComplete="tel" required maxLength={PHONE_MAX_LENGTH} value={form.phone} onChange={(event) => setForm((previous) => ({ ...previous, phone: stripPhoneSeparators(event.target.value) }))} placeholder="A number coordinators can reach" />
             </label>
 
             <label className="field-group" htmlFor="request-type">
@@ -153,6 +202,18 @@ export default function RequestForm() {
               <span>People needing help</span>
               <input id="people-count" name="num_people" type="number" min={1} max={999} required value={form.num_people} onChange={(event) => setForm((previous) => ({ ...previous, num_people: Math.max(1, Number(event.target.value)) }))} />
             </label>
+
+            {events.length > 1 && (
+              <label className="field-group field-wide" htmlFor="event-select">
+                <span>Which disaster is this related to?</span>
+                <select id="event-select" value={form.event_id} onChange={(event) => setForm((previous) => ({ ...previous, event_id: event.target.value }))}>
+                  <option value="">Not sure / general request</option>
+                  {events.map((item) => (
+                    <option key={item.event_id} value={item.event_id}>{item.name}{item.region ? ` — ${item.region}` : ''}</option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <div className="field-group field-wide urgency-field">
               <div className="urgency-label-row"><label htmlFor="urgency-level">Urgency</label><span className={`urgency-value urgency-${form.urgency_level}`}>{urgencyLabels[form.urgency_level]}</span></div>
