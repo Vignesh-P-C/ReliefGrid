@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { shelterAccessDenial } = require('../lib/shelterAccess');
 
 const router = express.Router();
 
@@ -71,8 +72,10 @@ const CAPACITY_RESULT_RESPONSES = {
   invalid_quantity: { status: 400, message: 'num_people must be a positive whole number' },
 };
 
-// POST /api/shelters/:id/checkin — wraps checkin_to_shelter(), the concurrency-safe function
-router.post('/:id/checkin', requireAuth, async (req, res) => {
+// POST /api/shelters/:id/checkin — wraps checkin_to_shelter(), the concurrency-safe function.
+// Staff only, and only for a shelter the caller owns: filling beds was open to
+// every signed-in role, including Volunteers (Audit #47, #48).
+router.post('/:id/checkin', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async (req, res) => {
   const { id } = req.params;
   const { num_people } = req.body;
 
@@ -84,7 +87,12 @@ router.post('/:id/checkin', requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT checkin_to_shelter($1, $2) AS outcome', [id, num_people]);
+    const denial = await shelterAccessDenial(req.user, Number(id));
+    if (denial) return res.status(denial.status).json({ message: denial.message });
+
+    // The actor travels into Shelter_Capacity_Log through the transaction-local
+    // setting the function sets for trg_log_capacity (Audit #51).
+    const result = await pool.query('SELECT checkin_to_shelter($1, $2, $3) AS outcome', [id, num_people, req.user.user_id]);
     const outcome = result.rows[0].outcome;
     if (outcome === 'ok') {
       req.app.get('io').emit('shelter-updated', { shelterId: Number(id) });
@@ -98,8 +106,9 @@ router.post('/:id/checkin', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/shelters/:id/checkout — wraps checkout_from_shelter(), the check-in counterpart (Audit #19)
-router.post('/:id/checkout', requireAuth, async (req, res) => {
+// POST /api/shelters/:id/checkout — wraps checkout_from_shelter(), the check-in counterpart (Audit #19).
+// Same role and ownership rule as check-in (Audit #47, #48).
+router.post('/:id/checkout', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async (req, res) => {
   const { id } = req.params;
   const { num_people } = req.body;
 
@@ -111,7 +120,10 @@ router.post('/:id/checkout', requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT checkout_from_shelter($1, $2) AS outcome', [id, num_people]);
+    const denial = await shelterAccessDenial(req.user, Number(id));
+    if (denial) return res.status(denial.status).json({ message: denial.message });
+
+    const result = await pool.query('SELECT checkout_from_shelter($1, $2, $3) AS outcome', [id, num_people, req.user.user_id]);
     const outcome = result.rows[0].outcome;
     if (outcome === 'ok') {
       req.app.get('io').emit('shelter-updated', { shelterId: Number(id) });
@@ -156,12 +168,22 @@ router.post('/', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async 
     return res.status(400).json({ message: `contact_number must be ${CONTACT_NUMBER_MAX_LENGTH} characters or fewer` });
   }
 
+  // A coordinator who opens a shelter owns it; handing a shelter to somebody
+  // else is an Admin action (Audit #48).
+  let assignedCoordinatorId = coordinator_id || null;
+  if (req.user.role !== 'Admin') {
+    if (coordinator_id && Number(coordinator_id) !== req.user.user_id) {
+      return res.status(403).json({ message: 'Only an Admin can assign a shelter to another coordinator' });
+    }
+    assignedCoordinatorId = req.user.user_id;
+  }
+
   try {
     const result = await pool.query(
       `INSERT INTO Shelters(name, latitude, longitude, capacity_total, address, contact_number, coordinator_id, event_id, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'active'))
        RETURNING *`,
-      [name.trim(), latitude, longitude, Number(capacity_total), address || null, contact_number ? contact_number.trim() : null, coordinator_id || null, event_id || null, status || null]
+      [name.trim(), latitude, longitude, Number(capacity_total), address || null, contact_number ? contact_number.trim() : null, assignedCoordinatorId, event_id || null, status || null]
     );
     req.app.get('io').emit('shelter-updated', { shelterId: result.rows[0].shelter_id });
     res.status(201).json(result.rows[0]);
@@ -214,6 +236,12 @@ router.patch('/:id', requireAuth, requireRole('Admin', 'ShelterCoordinator'), as
   if (!isPositiveInteger(id)) {
     return res.status(400).json({ message: 'shelter id must be a positive whole number' });
   }
+  if ('coordinator_id' in updates && req.user.role !== 'Admin') {
+    return res.status(403).json({ message: 'Only an Admin can reassign a shelter to another coordinator' });
+  }
+
+  const denial = await shelterAccessDenial(req.user, Number(id));
+  if (denial) return res.status(denial.status).json({ message: denial.message });
 
   const client = await pool.connect();
   try {

@@ -8,6 +8,9 @@ export interface ShelterLiveStatus {
   event_id: number | null;
   event_name: string | null;
   is_active: boolean;
+  // The shelter's assigned coordinator, so the board can scope its controls to
+  // the shelters this user may actually act on (Audit #48).
+  coordinator_id: number | null;
 }
 
 export interface RankedShelter {

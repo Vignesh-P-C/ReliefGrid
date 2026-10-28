@@ -7,6 +7,7 @@ import PriorityQueue from './components/PriorityQueue';
 import AllocationWorkspace from './components/AllocationWorkspace';
 import AllocationHistory from './components/AllocationHistory';
 import VolunteerTaskTree from './components/VolunteerTaskTree';
+import api from './lib/api';
 import { socket } from './lib/socket';
 import type { AuthUser } from './types';
 import './App.css';
@@ -44,11 +45,32 @@ const sections: Record<Tab, { eyebrow: string; title: string; description: strin
 
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  // Starts true only when there is a stored token to check, so a first-time
+  // visitor goes straight to the sign-in screen instead of a splash.
+  const [restoringSession, setRestoringSession] = useState(() => Boolean(localStorage.getItem('reliefgrid_token')));
   const [tab, setTab] = useState<Tab>('board');
   const [socketStatus, setSocketStatus] = useState<SocketStatus>('disconnected');
   const [queueRefresh, setQueueRefresh] = useState<{ lastSuccessfulAt: number | null; failed: boolean }>({ lastSuccessfulAt: null, failed: false });
   const [allocationSupplyId, setAllocationSupplyId] = useState<number | null>(null);
   const [clockNow, setClockNow] = useState(Date.now());
+
+  // A reload used to drop the coordinator back to the sign-in screen even
+  // though the stored token was still valid for hours (Audit #46). The token is
+  // verified against /auth/me, which also refreshes the role from the database,
+  // so a revoked token or a changed role takes effect on reload.
+  useEffect(() => {
+    let active = true;
+    if (!localStorage.getItem('reliefgrid_token')) {
+      return () => { active = false; };
+    }
+
+    api.get<AuthUser>('/auth/me')
+      .then((response) => { if (active) setUser(response.data); })
+      .catch(() => { if (active) localStorage.removeItem('reliefgrid_token'); })
+      .finally(() => { if (active) setRestoringSession(false); });
+
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -102,6 +124,10 @@ function App() {
     setTab('allocation');
   };
   const handleInitialSupplyUsed = useCallback(() => setAllocationSupplyId(null), []);
+
+  if (restoringSession) {
+    return <div className="loading-state"><span className="loading-mark" />Restoring your session…</div>;
+  }
 
   if (!user) {
     return <Login onLoggedIn={setUser} />;
@@ -181,7 +207,7 @@ function App() {
           <ShortageBanner onAllocate={handleAllocateFromShortage} />
 
           <section className="workspace-panel" aria-label={section.title}>
-            {tab === 'board' && <ShelterBoard canManage={user.role === 'Admin' || user.role === 'ShelterCoordinator'} />}
+            {tab === 'board' && <ShelterBoard canManage={user.role === 'Admin' || user.role === 'ShelterCoordinator'} user={user} />}
             {tab === 'ranked' && <RankedOccupancy />}
             {tab === 'queue' && (
               <PriorityQueue

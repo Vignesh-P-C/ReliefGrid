@@ -49,7 +49,13 @@ CREATE TABLE Shelter_Capacity_Log (
   log_id SERIAL PRIMARY KEY,
   shelter_id INT REFERENCES Shelters(shelter_id),
   capacity_occupied INT NOT NULL,
-  logged_at TIMESTAMP DEFAULT now()
+  logged_at TIMESTAMP DEFAULT now(),
+  -- Who changed the occupancy, and what they did (Audit #51). Nullable: a row
+  -- written by direct SQL has no actor to record.
+  changed_by INT REFERENCES Users(user_id),
+  change_type VARCHAR(20)
+    CONSTRAINT shelter_capacity_log_change_type_allowed
+    CHECK (change_type IS NULL OR change_type IN ('checkin', 'checkout', 'correction'))
 );
 
 CREATE TABLE Supply_Categories (
@@ -80,7 +86,9 @@ CREATE TABLE Volunteer_Tasks (
   volunteer_id INT REFERENCES Volunteers(volunteer_id),
   parent_task_id INT REFERENCES Volunteer_Tasks(task_id), -- self-ref, used by the recursive CTE
   description TEXT NOT NULL,
-  status VARCHAR(20) DEFAULT 'pending',
+  status VARCHAR(20) DEFAULT 'pending'
+    CONSTRAINT volunteer_tasks_status_allowed
+    CHECK (status IN ('pending', 'in_progress', 'done', 'blocked', 'cancelled')),
   priority SMALLINT DEFAULT 3
 );
 
@@ -267,13 +275,18 @@ $$ LANGUAGE plpgsql;
 -- serialize instead of racing (Module 6: lock-based concurrency control).
 -- Returns 'ok', 'not_found', 'inactive', or 'full' so the API can tell these
 -- apart instead of reporting a false success for a missing/closed shelter.
-CREATE OR REPLACE FUNCTION checkin_to_shelter(p_shelter_id INT, p_num_people INT) RETURNS VARCHAR AS $$
+CREATE OR REPLACE FUNCTION checkin_to_shelter(p_shelter_id INT, p_num_people INT, p_changed_by INT DEFAULT NULL) RETURNS VARCHAR AS $$
 DECLARE
   occ INT; tot INT; shelter_status VARCHAR;
 BEGIN
   IF p_num_people IS NULL OR p_num_people <= 0 THEN
     RETURN 'invalid_quantity';
   END IF;
+
+  -- Transaction-local context for trg_log_capacity (Audit #51). Set before the
+  -- UPDATE so the trigger can attribute the row it writes.
+  PERFORM set_config('reliefgrid.changed_by', COALESCE(p_changed_by::text, ''), true);
+  PERFORM set_config('reliefgrid.change_type', 'checkin', true);
 
   SELECT capacity_occupied, capacity_total, status INTO occ, tot, shelter_status
   FROM Shelters WHERE shelter_id = p_shelter_id
@@ -298,13 +311,16 @@ $$ LANGUAGE plpgsql;
 
 -- 2.3c SAFE check-out — the counterpart to checkin_to_shelter(), under the
 -- same row lock, never letting occupancy go negative.
-CREATE OR REPLACE FUNCTION checkout_from_shelter(p_shelter_id INT, p_num_people INT) RETURNS VARCHAR AS $$
+CREATE OR REPLACE FUNCTION checkout_from_shelter(p_shelter_id INT, p_num_people INT, p_changed_by INT DEFAULT NULL) RETURNS VARCHAR AS $$
 DECLARE
   occ INT;
 BEGIN
   IF p_num_people IS NULL OR p_num_people <= 0 THEN
     RETURN 'invalid_quantity';
   END IF;
+
+  PERFORM set_config('reliefgrid.changed_by', COALESCE(p_changed_by::text, ''), true);
+  PERFORM set_config('reliefgrid.change_type', 'checkout', true);
 
   SELECT capacity_occupied INTO occ
   FROM Shelters WHERE shelter_id = p_shelter_id
@@ -544,8 +560,17 @@ FOR EACH ROW EXECUTE FUNCTION deduct_supply_on_allocation();
 -- 3.2 Log every capacity change (feeds the materialized view in section 5)
 CREATE OR REPLACE FUNCTION log_capacity_change() RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO Shelter_Capacity_Log(shelter_id, capacity_occupied)
-  VALUES (NEW.shelter_id, NEW.capacity_occupied);
+  -- The actor and the kind of change come from transaction-local settings that
+  -- checkin_to_shelter()/checkout_from_shelter() set. A trigger cannot see the
+  -- caller's arguments, so the context travels with the transaction instead
+  -- (Audit #51). Unset reads as NULL rather than failing the write.
+  INSERT INTO Shelter_Capacity_Log(shelter_id, capacity_occupied, changed_by, change_type)
+  VALUES (
+    NEW.shelter_id,
+    NEW.capacity_occupied,
+    NULLIF(current_setting('reliefgrid.changed_by', true), '')::int,
+    NULLIF(current_setting('reliefgrid.change_type', true), '')
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -562,6 +587,9 @@ FOR EACH ROW EXECUTE FUNCTION log_capacity_change();
 -- event_id/event_name/is_active let the dashboard scope totals to one event
 -- and to active shelters only (Audit #22). Appended after the original
 -- columns so CREATE OR REPLACE VIEW stays backward-compatible.
+-- coordinator_id lets the dashboard scope its manage and check-in controls to
+-- the shelters a coordinator actually owns (Audit #48). Appended at the end
+-- again so CREATE OR REPLACE VIEW stays backward-compatible.
 CREATE VIEW Shelter_Live_Status AS
 SELECT s.shelter_id, s.name, s.capacity_total, s.capacity_occupied,
   ROUND(100.0 * s.capacity_occupied / NULLIF(s.capacity_total,0), 1) AS occupancy_pct,
@@ -569,7 +597,8 @@ SELECT s.shelter_id, s.name, s.capacity_total, s.capacity_occupied,
        WHEN s.capacity_occupied >= 0.9 * s.capacity_total THEN 'near-full'
        ELSE 'available' END AS status,
   s.event_id, e.name AS event_name,
-  (s.status = 'active') AS is_active
+  (s.status = 'active') AS is_active,
+  s.coordinator_id
 FROM Shelters s
 LEFT JOIN Disaster_Events e ON e.event_id = s.event_id;
 
