@@ -532,7 +532,7 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 46. Refreshing the page logs the coordinator out
 
-- [ ] Resolved
+- [x] Resolved — `GET /api/auth/me` + session restore, merged via PR #102 (phase-5-guardrails)
 
 **Severity:** Broken · **Area:** Security / session · **Layer:** API + Frontend
 
@@ -542,7 +542,7 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 47. Any logged-in role can consume resources
 
-- [ ] Resolved
+- [x] Resolved — check-in/check-out/allocate now require `requireRole('Admin', 'ShelterCoordinator')`, merged via PR #102 (phase-5-guardrails)
 
 **Severity:** Blocker · **Area:** Security · **Layer:** API
 
@@ -552,7 +552,7 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 48. No shelter-level authorization
 
-- [ ] Resolved
+- [x] Resolved — `shelterAccessDenial()`/`allocationAccessDenial()` scope writes to the assigned coordinator, merged via PR #102 (phase-5-guardrails)
 
 **Severity:** Blocker · **Area:** Security · **Layer:** DB + API
 
@@ -562,7 +562,7 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 49. Socket.IO is unauthenticated and broadcasts personal data
 
-- [ ] Resolved
+- [x] Resolved — Socket.IO handshake now requires the same JWT as the HTTP routes, merged via PR #102 (phase-5-guardrails)
 
 **Severity:** Blocker · **Area:** Security · **Layer:** API
 
@@ -572,7 +572,7 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 50. Open CORS, no security headers, no login throttling
 
-- [ ] Resolved
+- [x] Resolved — CORS allowlist, security headers, and login throttling added, merged via PR #102 (phase-5-guardrails)
 
 **Severity:** Gap · **Area:** Security · **Layer:** API
 
@@ -582,7 +582,7 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 51. No accountability trail
 
-- [ ] Resolved
+- [x] Resolved — `Shelter_Capacity_Log.changed_by`/`change_type`, merged via PR #102 (phase-5-guardrails)
 
 **Severity:** Gap · **Area:** Security / audit · **Layer:** DB
 
@@ -596,7 +596,7 @@ None of these require a redesign; they are small omissions with outsized consequ
 
 ### 52. Status columns are free text
 
-- [ ] Resolved
+- [x] Resolved — `CHECK` constraints on `Aid_Requests.status`/`Shelters.status` (earlier phases) and `Volunteer_Tasks.status`, merged via PR #102 (phase-5-guardrails)
 
 **Severity:** Broken · **Area:** Integrity · **Layer:** DB
 
