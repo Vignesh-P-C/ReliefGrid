@@ -3,6 +3,7 @@ const pool = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { describeDatabaseError } = require('../lib/databaseErrors');
 const { normalisePhone } = require('../lib/phone');
+const { shelterAccessDenial } = require('../lib/shelterAccess');
 
 const router = express.Router();
 
@@ -128,6 +129,101 @@ router.patch('/:requestId/priority', requireAuth, requireRole('Admin', 'ShelterC
     if (migration) return res.status(migration.status).json({ message: migration.message });
     console.error(err);
     return res.status(500).json({ message: 'Failed to save priority review' });
+  }
+});
+
+// POST /api/aid-requests/:requestId/checkin-nearest — one-click check-in for a
+// request with no item needs (shelter-only, or no needs ticked). Finds the
+// requester's nearest active shelter with room via find_nearest_shelters(),
+// checks them in via checkin_to_shelter(), and marks the request resolved so
+// it drops out of the queue — all reusing existing, already-deployed
+// functions, so this needs no migration. Still goes through the same
+// shelter-ownership check as a manual check-in (Audit #48): an Admin can
+// check in anywhere, a ShelterCoordinator only if they happen to own the
+// shelter find_nearest_shelters() picked.
+router.post('/:requestId/checkin-nearest', requireAuth, requireRole('Admin', 'ShelterCoordinator'), async (req, res) => {
+  const requestId = toPositiveInteger(req.params.requestId);
+  if (requestId === null) {
+    return res.status(400).json({ message: 'requestId must be a positive whole number' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const requestResult = await client.query(
+      `SELECT request_id, latitude, longitude, num_people, status
+       FROM Aid_Requests WHERE request_id = $1 FOR UPDATE`,
+      [requestId]
+    );
+    if (requestResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'No request exists with this ID' });
+    }
+    const request = requestResult.rows[0];
+
+    if (!['pending', 'partially_fulfilled'].includes(request.status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ message: `Request is already ${request.status.replace('_', ' ')}` });
+    }
+    if (request.latitude === null || request.longitude === null) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ message: 'This request has no location, so a nearest shelter cannot be chosen automatically' });
+    }
+
+    const needsResult = await client.query('SELECT count(*)::int AS n FROM Request_Needs WHERE request_id = $1', [requestId]);
+    if (needsResult.rows[0].n > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ message: 'This request has item needs — use Allocation for those, not quick check-in' });
+    }
+
+    const nearest = await client.query(
+      'SELECT shelter_id, name, has_space FROM find_nearest_shelters($1, $2, $3, 1)',
+      [request.latitude, request.longitude, request.num_people || 1]
+    );
+    if (nearest.rowCount === 0 || !nearest.rows[0].has_space) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ message: 'No active shelter currently has enough room nearby for this household' });
+    }
+    const shelter = nearest.rows[0];
+
+    const denial = await shelterAccessDenial(req.user, shelter.shelter_id);
+    if (denial) {
+      await client.query('ROLLBACK');
+      return res.status(denial.status).json({
+        message: `${denial.message} (nearest shelter with room is ${shelter.name}, which you are not assigned to)`,
+      });
+    }
+
+    const checkin = await client.query(
+      'SELECT checkin_to_shelter($1, $2, $3) AS outcome',
+      [shelter.shelter_id, request.num_people || 1, req.user.user_id]
+    );
+    if (checkin.rows[0].outcome !== 'ok') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ message: `Check-in at ${shelter.name} failed: ${checkin.rows[0].outcome}` });
+    }
+
+    await client.query(`UPDATE Aid_Requests SET status = 'fulfilled' WHERE request_id = $1`, [requestId]);
+    await client.query('COMMIT');
+
+    req.app.get('io').emit('shelter-updated', { shelterId: shelter.shelter_id });
+    req.app.get('io').emit('aid-request-reviewed', { request_id: requestId });
+
+    res.json({
+      success: true,
+      shelter_id: shelter.shelter_id,
+      shelter_name: shelter.name,
+      num_people: request.num_people,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    const migration = describeDatabaseError(err);
+    if (migration) return res.status(migration.status).json({ message: migration.message });
+    console.error(err);
+    res.status(500).json({ message: 'Check-in failed' });
+  } finally {
+    client.release();
   }
 });
 
