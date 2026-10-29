@@ -11,6 +11,7 @@
     "test:phase4": "node tests/phase4-portal-test.js",
     "test:phase5": "node tests/phase5-guardrails-test.js",
     "test:concurrency": "node tests/concurrency-test.js",
+    "test:unsafe-checkin": "node tests/unsafe-checkin-demo.js",
     "test:isolation": "node tests/isolation-level-test.js",
     "test:deadlock": "node tests/deadlock-test.js"
   },

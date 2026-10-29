@@ -419,6 +419,8 @@ CREATE INDEX idx_users_phone_hash ON Users USING hash(phone);          -- exact-
 
 The scripts under `server/tests/` write to shelter rows. The isolation demo resets shelter 1 occupancy, the deadlock demo updates shelters 1 and 2, and the check-in demo changes occupancy at its configured shelter (default ID 6). Confirm `DATABASE_URL` points to a disposable database with known fixtures before running any of them. Never use the shared/hosted Supabase database. Seed IDs and row counts are not guarantees about production.
 
+`unsafe-checkin-demo.js` (`npm run test:unsafe-checkin`) is the actual "before" half of the concurrency centerpiece: it runs the textbook read-then-write race with no locking (matching the `checkin_unsafe` sketch in 7.3 below), then runs the same scenario through the real `checkin_to_shelter()`, so the lost update and its fix sit side by side in one run. Direct SQL, no API server needed.
+
 **Isolation level comparison** — run two overlapping sessions:
 ```sql
 -- Session A

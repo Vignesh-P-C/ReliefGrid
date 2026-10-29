@@ -1,9 +1,9 @@
 # Normalization and Key Analysis — ReliefGrid
 
-This note records the design derivation and a table-by-table check of the ten
-relations in [`schema.sql`](schema.sql). The conclusions describe the current
-DDL under the assumptions below; they are not a proof about every possible
-business rule that the schema does not encode.
+This note records the design derivation and a table-by-table check of the
+eleven relations in [`schema.sql`](schema.sql). The conclusions describe the
+current DDL under the assumptions below; they are not a proof about every
+possible business rule that the schema does not encode.
 
 ## Scope and assumptions
 
@@ -60,9 +60,10 @@ those facts belong in their own relation rather than repeated columns.
 All declared columns use scalar SQL types, so the current relations are in 1NF
 under the scalar-value assumption above. No relation has a composite candidate
 key, so there are no partial dependencies on a proper subset of a candidate
-key; this supports 2NF. The table-by-table analysis below finds no declared
-non-key determinant, so each relation satisfies BCNF under the stated
-constraints and assumptions (and therefore also 3NF).
+key; this supports 2NF. The table-by-table analysis below finds one relation
+(`Allocations`) with a non-key determinant — see the discussion after the
+table. Every other relation satisfies BCNF under the stated constraints and
+assumptions (and therefore also 3NF).
 
 ## Table-by-table keys and dependencies
 
@@ -75,13 +76,14 @@ relation. These dependencies follow from the declared key constraints.
 | `Disaster_Events` | `event_id` | `event_id → name, type, region, severity, start_date, end_date` | BCNF |
 | `Users` | `user_id`; `phone` | `user_id → name, phone, email, password_hash, role`; `phone → user_id, name, email, password_hash, role` | BCNF |
 | `Shelters` | `shelter_id` | `shelter_id → event_id, name, address, latitude, longitude, capacity_total, capacity_occupied, contact_number, coordinator_id, status` | BCNF |
-| `Shelter_Capacity_Log` | `log_id` | `log_id → shelter_id, capacity_occupied, logged_at` | BCNF |
+| `Shelter_Capacity_Log` | `log_id` | `log_id → shelter_id, capacity_occupied, logged_at, changed_by, change_type` | BCNF |
 | `Supply_Categories` | `category_id`; `name` | `category_id → name`; `name → category_id` | BCNF |
 | `Supplies` | `supply_id` | `supply_id → shelter_id, category_id, item_name, quantity, unit, reorder_threshold` | BCNF |
 | `Volunteers` | `volunteer_id` | `volunteer_id → user_id, skills, availability` | BCNF |
 | `Volunteer_Tasks` | `task_id` | `task_id → shelter_id, volunteer_id, parent_task_id, description, status, priority` | BCNF |
-| `Aid_Requests` | `request_id` | `request_id → event_id, requester_name, phone, latitude, longitude, request_type, num_people, urgency_level, status, created_at` | BCNF |
-| `Allocations` | `allocation_id` | `allocation_id → request_id, supply_id, quantity_allocated, allocated_at` | BCNF |
+| `Aid_Requests` | `request_id` | `request_id → event_id, requester_name, phone, latitude, longitude, request_type, num_people, urgency_level, reviewed_priority, reviewed_by, reviewed_at, status, created_at` | BCNF |
+| `Request_Needs` | `need_id` | `need_id → request_id, category_id, item_label, quantity_needed, is_estimate, created_at` | BCNF |
+| `Allocations` | `allocation_id` | `allocation_id → request_id, supply_id, quantity_allocated, need_id, allocated_by, allocated_at`; also `need_id → request_id` (non-trivial, see below) | **Not BCNF** (deliberate; see below) |
 
 `Users.phone` is a candidate key because it is both `UNIQUE` and `NOT NULL`.
 `Supply_Categories.name` is a candidate key for the same reason. The other
@@ -91,6 +93,44 @@ shelter may have multiple supply and capacity-log records. Nullable foreign
 keys do not change the primary-key conclusions. Check constraints on values
 such as capacity and urgency restrict allowed values but do not introduce
 additional functional dependencies.
+
+### The `Allocations` exception: `need_id → request_id`
+
+`Request_Needs.request_id` is `NOT NULL REFERENCES Aid_Requests(request_id)`,
+so every need belongs to exactly one request — that is a real-world fact, not
+an assumption. Because `Allocations.need_id` references that same need, every
+`Allocations` row with a given (non-null) `need_id` necessarily has the same
+`request_id`: the request that need belongs to. That is a genuine, non-trivial
+functional dependency, `need_id → request_id`, holding over the rows where
+`need_id IS NOT NULL`.
+
+`need_id` is not a candidate key of `Allocations`: partial fulfilment means the
+same need can receive several separate allocations over time (different
+`supply_id`, `quantity_allocated`, `allocated_by`, `allocated_at` each time),
+so `need_id` does not determine the whole row. A non-trivial dependency
+(`need_id → request_id`) whose determinant (`need_id`) is not a superkey is,
+by definition, a BCNF violation. `Allocations` is in 3NF (`request_id` is a
+non-key attribute, not a non-key attribute that itself has a further
+dependent non-key attribute) but not BCNF.
+
+This is kept deliberately, not fixed: storing `request_id` directly makes
+`GET /api/supplies/allocations` (the allocation-history view) a single-table
+query instead of a join through `Request_Needs` on every page load. The
+normalization cost is bounded and understood, not ignored: no `CHECK` or
+composite foreign key declares `request_id` and `need_id` consistent with
+each other, so a direct SQL `INSERT` into `Allocations` could in principle set
+a `request_id` that disagrees with `need_id`'s own request. In practice the
+only write path is `allocate_supply()`, which takes both `p_request_id` and
+`p_need_id` as separate arguments but validates them against each other
+before writing anything: it looks up `p_need_id` scoped to
+`WHERE need_id = p_need_id AND request_id = p_request_id`, and returns the
+`need_not_found` outcome — writing nothing — if that pair does not match. So
+the function does not *derive* `request_id` from `need_id`; it *rejects* any
+call where the two disagree, which is how the invariant stays true through
+every row the application ever inserts. The honest answer to "is `Allocations`
+in BCNF?" is no — it is a documented, deliberate denormalization for lookup
+convenience, enforced procedurally rather than by a declared constraint, not
+an oversight.
 
 The BCNF results rely on the declared constraints and stated domain assumptions.
 If a real business rule introduces another dependency—for example, if each
@@ -113,9 +153,12 @@ not as relations required by the shelter-report decomposition:
 
 ## Presentation summary
 
-The design separates events, users, shelters, supplies, requests, and
+The design separates events, users, shelters, supplies, requests, needs, and
 allocations so each fact is stored with its own identifier and referenced by
-foreign keys. All ten tables have been checked against their declared keys and
-dependencies. Under the assumptions documented here, every determinant is a
-candidate key, so the relations satisfy BCNF. The capacity log and category
-lookup are intentional extensions for history and consistency, respectively.
+foreign keys. All eleven tables have been checked against their declared keys
+and dependencies. Ten of the eleven satisfy BCNF outright. `Allocations` is
+the one documented exception (`need_id → request_id`, see above): a
+deliberate, bounded denormalization for lookup convenience, kept consistent by
+`allocate_supply()` rather than by a declared constraint. The capacity log and
+category lookup are intentional extensions for history and consistency,
+respectively.

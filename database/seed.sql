@@ -101,13 +101,45 @@ INSERT INTO Supply_Categories (name) VALUES
   ('Food'), ('Water'), ('Medical'), ('Bedding');
 
 -- Supplies — FABRICATED throughout (no dataset records historical
--- stock levels; this exists to feed the shortage-detection view).
+-- stock levels; this exists to feed the shortage-detection view). Every
+-- shelter carries all four categories — Food, Water, Medical, Bedding —
+-- scaled roughly to its capacity, so the allocation screen never has to
+-- explain "why does only one shelter have this item." Kalady's water row
+-- stays deliberately below its reorder threshold on purpose, to feed the
+-- shortage view.
 INSERT INTO Supplies (shelter_id, category_id, item_name, quantity, unit, reorder_threshold) VALUES
   ((SELECT shelter_id FROM Shelters WHERE name = 'Kalady Ashram School Relief Camp'), 1, 'Rice packets', 400, 'packets', 100),
   ((SELECT shelter_id FROM Shelters WHERE name = 'Kalady Ashram School Relief Camp'), 2, 'Water bottles', 80, 'bottles', 150), -- deliberately below threshold, feeds the shortage view
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Kalady Ashram School Relief Camp'), 3, 'First aid kits', 150, 'kits', 40),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Kalady Ashram School Relief Camp'), 4, 'Blankets', 350, 'pieces', 80),
   ((SELECT shelter_id FROM Shelters WHERE name = 'Ernakulam District Relief Camps (aggregate, 64 camps)'), 1, 'Rice packets', 1200, 'packets', 300),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Ernakulam District Relief Camps (aggregate, 64 camps)'), 2, 'Water bottles', 900, 'bottles', 250),
   ((SELECT shelter_id FROM Shelters WHERE name = 'Ernakulam District Relief Camps (aggregate, 64 camps)'), 3, 'First aid kits', 60, 'kits', 20),
-  ((SELECT shelter_id FROM Shelters WHERE name = 'Wayanad District Relief Camps (aggregate, 87 camps)'), 4, 'Blankets', 500, 'pieces', 150);
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Ernakulam District Relief Camps (aggregate, 64 camps)'), 4, 'Blankets', 700, 'pieces', 150),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Idukki District Relief Camps (aggregate)'), 1, 'Rice packets', 350, 'packets', 90),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Idukki District Relief Camps (aggregate)'), 2, 'Water bottles', 300, 'bottles', 80),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Idukki District Relief Camps (aggregate)'), 3, 'First aid kits', 50, 'kits', 15),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Idukki District Relief Camps (aggregate)'), 4, 'Blankets', 280, 'pieces', 70),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Wayanad District Relief Camps (aggregate, 87 camps)'), 1, 'Rice packets', 600, 'packets', 150),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Wayanad District Relief Camps (aggregate, 87 camps)'), 2, 'Water bottles', 500, 'bottles', 120),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Wayanad District Relief Camps (aggregate, 87 camps)'), 3, 'First aid kits', 90, 'kits', 25),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Wayanad District Relief Camps (aggregate, 87 camps)'), 4, 'Blankets', 500, 'pieces', 150),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Alappuzha District Relief Camps (aggregate)'), 1, 'Rice packets', 9000, 'packets', 2000),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Alappuzha District Relief Camps (aggregate)'), 2, 'Water bottles', 7000, 'bottles', 1500),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Alappuzha District Relief Camps (aggregate)'), 3, 'First aid kits', 600, 'kits', 150),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Alappuzha District Relief Camps (aggregate)'), 4, 'Blankets', 5000, 'pieces', 1200),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Government High School Shelter (fabricated)'), 1, 'Rice packets', 20, 'packets', 5),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Government High School Shelter (fabricated)'), 2, 'Water bottles', 15, 'bottles', 5),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Government High School Shelter (fabricated)'), 3, 'First aid kits', 5, 'kits', 2),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Government High School Shelter (fabricated)'), 4, 'Blankets', 10, 'pieces', 3),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Community Hall Shelter (fabricated)'), 1, 'Rice packets', 100, 'packets', 25),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Community Hall Shelter (fabricated)'), 2, 'Water bottles', 80, 'bottles', 20),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Community Hall Shelter (fabricated)'), 3, 'First aid kits', 15, 'kits', 5),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Community Hall Shelter (fabricated)'), 4, 'Blankets', 60, 'pieces', 15),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Nilgiris Relief Camp (fabricated)'), 1, 'Rice packets', 60, 'packets', 15),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Nilgiris Relief Camp (fabricated)'), 2, 'Water bottles', 50, 'bottles', 12),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Nilgiris Relief Camp (fabricated)'), 3, 'First aid kits', 10, 'kits', 3),
+  ((SELECT shelter_id FROM Shelters WHERE name = 'Nilgiris Relief Camp (fabricated)'), 4, 'Blankets', 40, 'pieces', 10);
 
 INSERT INTO Volunteers (user_id, skills, availability) VALUES
   (4, 'First aid, logistics', 'weekends'); -- FABRICATED

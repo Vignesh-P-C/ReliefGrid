@@ -36,6 +36,9 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
   const [priorityDrafts, setPriorityDrafts] = useState<Record<number, string>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [reviewError, setReviewError] = useState('');
+  const [checkinId, setCheckinId] = useState<number | null>(null);
+  const [checkinError, setCheckinError] = useState('');
+  const [checkinSuccess, setCheckinSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -91,6 +94,29 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
       setReviewError(`Could not save the review for request ${requestId}. Try again.`);
     } finally {
       setSavingId(null);
+    }
+  };
+
+  // Shelter-only requests (no item needs) never appear in Allocation, so this
+  // is their only path to being served and dropped from the queue — finds the
+  // nearest shelter with room, checks the household in, marks the request
+  // fulfilled (Audit #23's resolution).
+  const checkinNearest = async (requestId: number) => {
+    setCheckinId(requestId);
+    setCheckinError('');
+    setCheckinSuccess('');
+    try {
+      const response = await api.post<{ shelter_name: string; num_people: number }>(
+        `/aid-requests/${requestId}/checkin-nearest`
+      );
+      const { num_people, shelter_name } = response.data;
+      setCheckinSuccess(`Checked ${num_people} ${num_people === 1 ? 'person' : 'people'} into ${shelter_name}. Request ${requestId} is now resolved.`);
+      await fetchQueue();
+    } catch (requestError) {
+      const failure = requestError as { response?: { data?: { message?: string } } };
+      setCheckinError(failure.response?.data?.message || `Could not check in request ${requestId}. Try again.`);
+    } finally {
+      setCheckinId(null);
     }
   };
 
@@ -210,7 +236,23 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
                     <td>{request.num_people} {request.num_people === 1 ? 'person' : 'people'}</td>
                     <td className="queue-needs">
                       {request.needs.length === 0 ? (
-                        <span className="table-muted">No item needs · shelter only</span>
+                        <>
+                          <span className="table-muted">No item needs · shelter only</span>
+                          {canReview && (
+                            request.location_status === 'available' ? (
+                              <button
+                                className="secondary-button"
+                                type="button"
+                                disabled={checkinId === request.request_id}
+                                onClick={() => { void checkinNearest(request.request_id); }}
+                              >
+                                {checkinId === request.request_id ? 'Checking in…' : 'Check in nearest shelter'}
+                              </button>
+                            ) : (
+                              <small className="table-secondary">No location on file — check in manually on the Live board</small>
+                            )
+                          )}
+                        </>
                       ) : (
                         <ul className="need-list">
                           {request.needs.map((need) => {
@@ -238,6 +280,8 @@ export default function PriorityQueue({ canReview, onRefreshSuccess, onRefreshEr
         </div>
       )}
       {reviewError && <p className="action-feedback is-error" role="alert">{reviewError}</p>}
+      {checkinError && <p className="action-feedback is-error" role="alert">{checkinError}</p>}
+      {checkinSuccess && <p className="action-feedback is-success" role="status">{checkinSuccess}</p>}
       <p className="module-footnote"><span className="status-dot" /> Queue score starts from reported urgency until reviewed, then from staff priority. It rises one level every 24 hours, up to 5. A request closes only when every item need is met. New requests appear automatically.</p>
     </div>
   );
